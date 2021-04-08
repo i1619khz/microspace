@@ -34,7 +34,7 @@ import java.lang.annotation.Target;
  */
 @Documented
 @Target({ElementType.METHOD})
-@Retention(RetentionPolicy.SOURCE)
+@Retention(RetentionPolicy.RUNTIME)
 public @interface Put {
   String value() default "";
 }
