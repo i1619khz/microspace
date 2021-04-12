@@ -27,6 +27,8 @@
         <powermock.version>2.0.9</powermock.version>
         <javapoet.version>1.13.0</javapoet.version>
         <okio.version>2.10.0</okio.version>
+        <common-lang3.version>3.10</common-lang3.version>
+        <banana.version>1.2.0</banana.version>
         <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
         <maven-license-plugin.version>1.9.0</maven-license-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
@@ -36,6 +38,16 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>${common-lang3.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.leego</groupId>
+            <artifactId>banana</artifactId>
+            <version>${banana.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.google.errorprone</groupId>
             <artifactId>error_prone_annotations</artifactId>
