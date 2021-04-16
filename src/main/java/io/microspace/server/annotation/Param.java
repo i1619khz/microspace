@@ -38,5 +38,5 @@ import java.lang.annotation.Target;
 public @interface Param {
   String value() default "";
 
-  String defaultValue();
+  String defaultValue() default "";
 }
