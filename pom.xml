@@ -18,7 +18,7 @@
         <jackson.version>2.11.1</jackson.version>
         <jctools.version>3.0.0</jctools.version>
         <completable-futures.version>0.3.3</completable-futures.version>
-        <reflections.version>0.9.12</reflections.version>
+        <reflections8.version>0.11.5</reflections8.version>
         <bcprov-jdk15on.version>1.68</bcprov-jdk15on.version>
         <logback.version>1.2.3</logback.version>
         <aopalliance.version>1.0</aopalliance.version>
@@ -27,8 +27,8 @@
         <powermock.version>2.0.9</powermock.version>
         <javapoet.version>1.13.0</javapoet.version>
         <okio.version>2.10.0</okio.version>
-        <common-lang3.version>3.10</common-lang3.version>
         <banana.version>1.2.0</banana.version>
+        <reflectasm.version>1.11.9</reflectasm.version>
         <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
         <maven-license-plugin.version>1.9.0</maven-license-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
@@ -38,11 +38,6 @@
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-            <version>${common-lang3.version}</version>
-        </dependency>
         <dependency>
             <groupId>io.leego</groupId>
             <artifactId>banana</artifactId>
@@ -129,9 +124,14 @@
             <version>${completable-futures.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.reflections</groupId>
-            <artifactId>reflections</artifactId>
-            <version>${reflections.version}</version>
+            <groupId>net.oneandone.reflections8</groupId>
+            <artifactId>reflections8</artifactId>
+            <version>${reflections8.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.esotericsoftware</groupId>
+            <artifactId>reflectasm</artifactId>
+            <version>${reflectasm.version}</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
