@@ -28,6 +28,7 @@
         <javapoet.version>1.13.0</javapoet.version>
         <okio.version>2.10.0</okio.version>
         <banana.version>1.2.0</banana.version>
+        <micrometer-core.version>1.6.6</micrometer-core.version>
         <reflectasm.version>1.11.9</reflectasm.version>
         <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
         <maven-license-plugin.version>1.9.0</maven-license-plugin.version>
@@ -38,6 +39,11 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <version>${micrometer-core.version}</version>
+        </dependency>
         <dependency>
             <groupId>io.leego</groupId>
             <artifactId>banana</artifactId>
