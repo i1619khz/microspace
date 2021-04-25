@@ -30,33 +30,33 @@ import io.netty.channel.epoll.EpollEventLoopGroup;
  * @author i1619kHz
  */
 public final class Epolls {
-  private static final Class<? extends EventLoopGroup> EPOLL_EVENT_LOOP_CLASS;
+    private static final Class<? extends EventLoopGroup> EPOLL_EVENT_LOOP_CLASS;
 
-  static {
-    try {
-      //noinspection unchecked
-      EPOLL_EVENT_LOOP_CLASS = (Class<? extends EventLoopGroup>)
-              Class.forName("io.netty.channel.epoll.EpollEventLoop", false,
-                      EpollEventLoopGroup.class.getClassLoader());
-    } catch (Exception e) {
-      throw new IllegalStateException("failed to locate EpollEventLoop class", e);
+    static {
+        try {
+            //noinspection unchecked
+            EPOLL_EVENT_LOOP_CLASS = (Class<? extends EventLoopGroup>)
+                    Class.forName("io.netty.channel.epoll.EpollEventLoop", false,
+                            EpollEventLoopGroup.class.getClassLoader());
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to locate EpollEventLoop class", e);
+        }
     }
-  }
 
-  private Epolls() {/* no thing */}
+    private Epolls() {/* no thing */}
 
-  public static boolean epollIsAvailable() {
-    try {
-      Object obj = Class.forName("io.netty.channel.epoll.Epoll")
-              .getMethod("isAvailable").invoke(null);
-      return null != obj && Boolean.parseBoolean(obj.toString())
-              && System.getProperty("os.name").toLowerCase().contains("linux");
-    } catch (Exception e) {
-      return false;
+    public static boolean epollIsAvailable() {
+        try {
+            Object obj = Class.forName("io.netty.channel.epoll.Epoll")
+                    .getMethod("isAvailable").invoke(null);
+            return null != obj && Boolean.parseBoolean(obj.toString())
+                    && System.getProperty("os.name").toLowerCase().contains("linux");
+        } catch (Exception e) {
+            return false;
+        }
     }
-  }
 
-  public static Class<? extends EventLoopGroup> epollEventLoopClass() {
-    return EPOLL_EVENT_LOOP_CLASS;
-  }
+    public static Class<? extends EventLoopGroup> epollEventLoopClass() {
+        return EPOLL_EVENT_LOOP_CLASS;
+    }
 }
