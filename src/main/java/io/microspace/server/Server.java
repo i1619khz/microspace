@@ -144,7 +144,7 @@ public final class Server {
                 if (isBindError) {
                     log.error("Unable to start server. Port already {} in use.", port);
                 } else {
-                    log.error("Error starting Micronaut server: " + e.getMessage(), e);
+                    log.error("Error starting Microspace server: " + e.getMessage(), e);
                 }
             }
 
@@ -155,7 +155,7 @@ public final class Server {
                 port = FreePortFinder.findFreeLocalPort();
                 bindServerToHost(serverBootstrap, host, port, attempts);
             } else {
-                throw new ServerStartupException("Unable to start Micronaut server on port: " + port, e);
+                throw new ServerStartupException("Unable to start Microspace server on port: " + port, e);
             }
         }
     }
