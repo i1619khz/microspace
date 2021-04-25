@@ -23,160 +23,227 @@
  */
 package io.microspace.server;
 
-import io.microspace.context.banner.Banner;
-import io.microspace.context.banner.DefaultApplicationBanner;
-import io.microspace.core.EventLoopGroups;
-import io.microspace.core.ThreadFactories;
+import io.microspace.core.FreePortFinder;
+import io.microspace.core.ServerThreadNamer;
 import io.microspace.core.TransportType;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.ServerChannel;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
-import io.netty.util.ResourceLeakDetector;
+import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.SSLException;
 import java.io.File;
+import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.nio.file.Paths;
-import java.security.cert.CertificateException;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
+import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
  * @author i1619kHz
  */
 public final class Server {
-  private static final Logger logger = LoggerFactory.getLogger(Server.class);
+    private static final Logger log = LoggerFactory.getLogger(Server.class);
 
-  /** Service startup status, using volatile to ensure threads are visible. */
-  private final AtomicBoolean running = new AtomicBoolean(false);
-  private final Banner defaultBanner = new DefaultApplicationBanner();
-  private final ServerSpec spec;
-  private SslContext sslContext;
+    private final AtomicBoolean isRunning = new AtomicBoolean(false);
+    private final ServerConfig config;
+    private SslContext sslContext;
+    private EventLoopGroup parentGroup;
+    private EventLoopGroup workerGroup;
 
-  /**
-   * Create {@link ServerBuilder}
-   *
-   * @return ServerBuilder
-   */
-  public static ServerBuilder builder() {
-    return new ServerBuilder();
-  }
-
-  /**
-   * Create a {@link Server} through {@link ServerSpec}
-   *
-   * @param spec Server spec config
-   */
-  public Server(ServerSpec spec) {
-    this.spec = spec;
-  }
-
-  public void start() {
-    try {
-      this.printlnBanner();
-      this.startBefore();
-    } catch (CertificateException | SSLException e) {
-      logger.error("", e);
-    }
-  }
-
-  private void startBefore() throws CertificateException, SSLException {
-    final CompletableFuture<Void> future = new CompletableFuture<>();
-    final SelfSignedCertificate ssc = new SelfSignedCertificate();
-
-    if (!spec.useSsl()) {
-      this.sslContext = null;
+    Server(ServerConfig config, SslContext sslContext) {
+        this.config = config;
+        this.sslContext = sslContext;
     }
 
-    final String sslCert = spec.sslCert();
-    final String sslPrivateKey = spec.sslPrivateKey();
-    final String sslPrivateKeyPass = spec.sslPrivateKeyPass();
+    public static ServerBuilder builder() {
+        return new ServerBuilder();
+    }
 
-    this.sslContext = SslContextBuilder.forServer(setKeyCertFileAndPriKey(sslCert, ssc.certificate()),
-        setKeyCertFileAndPriKey(sslPrivateKey, ssc.privateKey()), sslPrivateKeyPass).build();
+    /**
+     * Use the configured path if the certificate and private key are
+     * configured, otherwise use the default configuration
+     *
+     * @param keyPath         private keystore path
+     * @param defaultFilePath default private keystore path
+     * @return keystore file
+     */
+    private File setKeyCertFileAndPriKey(String keyPath, File defaultFilePath) {
+        return keyPath != null ? Paths.get(keyPath).toFile() : defaultFilePath;
+    }
 
-    this.bindServerToHost(spec.serverPort()).addListener(f -> {
-      if (!f.isSuccess()) {
-        future.completeExceptionally(f.cause());
-      } else {
-        this.running.set(true);
-        logger.info("Serving HTTP at {}", spec.serverPort().localAddress());
-      }
-    });
-  }
+    public void start() {
+        try {
+            final boolean ssl = config.useSsl();
+            final SelfSignedCertificate ssc = new SelfSignedCertificate();
 
-  private ChannelFuture bindServerToHost(ServerPort port) {
-    ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.DISABLED);
+            if (!ssl) {
+                sslContext = null;
+            }
 
-    final ServerBootstrap serverBootstrap = new ServerBootstrap();
-    serverBootstrap.childHandler(new Http2ServerInitializer(sslContext));
-    serverBootstrap.option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT);
-    serverBootstrap.handler(new ConnectionLimitHandler(spec.maxNumConnections()));
+            final File sslCertFile = setKeyCertFileAndPriKey(config.sslCert(), ssc.certificate());
+            final File sslPrivateKeyFile = setKeyCertFileAndPriKey(config.sslPrivateKey(), ssc.privateKey());
 
-    this.spec.channelOptions().forEach((k, v) -> {
-      @SuppressWarnings("unchecked")
-      final ChannelOption<Object> castOption = (ChannelOption<Object>) k;
-      serverBootstrap.option(castOption, v);
-    });
+            sslContext = SslContextBuilder.forServer(sslCertFile,
+                    sslPrivateKeyFile, config.sslPrivateKeyPass()).build();
+        } catch (Exception e) {
+            log.error("Build SslContext exception", e);
+        }
 
-    this.spec.childChannelOptions().forEach((k, v) -> {
-      @SuppressWarnings("unchecked")
-      final ChannelOption<Object> castOption = (ChannelOption<Object>) k;
-      serverBootstrap.childOption(castOption, v);
-    });
+        if (!isRunning()) {
+            final ServerBootstrap serverBootstrap = new ServerBootstrap();
+            this.parentGroup = createParentEventLoopGroup();
+            this.workerGroup = createWorkerEventLoopGroup();
 
-    final EventLoopGroup bossGroup = EventLoopGroups.newEventLoopGroup(spec.acceptThreadCount(),
-        ThreadFactories.newEventLoopThreadFactory(bossThreadName(spec.serverPort(),
-            "boss"), false));
+            final HttpServerInitializer initializer = new HttpServerInitializer(sslContext);
+            serverBootstrap.group(parentGroup, workerGroup).handler(createAcceptLimiter())
+                    .channel(transportChannel()).childHandler(initializer);
 
-    final EventLoopGroup workerGroup = EventLoopGroups.newEventLoopGroup(spec.ioThreadCount(),
-        ThreadFactories.newEventLoopThreadFactory(bossThreadName(spec.serverPort(),
-            "worker"), true));
+            processOptions(config.channelOptions(), serverBootstrap::option);
+            processOptions(config.childChannelOptions(), serverBootstrap::option);
 
-    serverBootstrap.group(bossGroup, workerGroup);
-    serverBootstrap.channel(TransportType.detectTransportType().serverChannelType());
-    return serverBootstrap.bind(port.localAddress());
-  }
+            bindServerToHost(serverBootstrap, config.serverPort().host(),
+                    config.serverPort().port(), new AtomicInteger(0));
+        }
+    }
 
-  /**
-   * print default banner
-   */
-  private void printlnBanner() {
-    this.defaultBanner.printBanner(System.out, spec.bannerText(), spec.bannerFont());
-  }
+    private void bindServerToHost(ServerBootstrap serverBootstrap, String host, int port, AtomicInteger attempts) {
+        final boolean isRandomPort = port == -1;
 
-  /**
-   * Use the configured path if the certificate and private key are
-   * configured, otherwise use the default configuration
-   *
-   * @param keyPath         private keystore path
-   * @param defaultFilePath default private keystore path
-   * @return keystore file
-   */
-  private File setKeyCertFileAndPriKey(String keyPath, File defaultFilePath) {
-    return Objects.nonNull(keyPath) ? Paths.get(keyPath).toFile() : defaultFilePath;
-  }
+        if (config().mainType() != null) {
+            String applicationName = config.mainType().getName();
+            if (log.isInfoEnabled()) {
+                log.trace("Binding {} server to {}:{}", applicationName, host != null ? host : "*", port);
+            }
+        } else {
+            if (log.isInfoEnabled()) {
+                log.trace("Binding server to {}:{}", host != null ? host : "*", port);
+            }
+        }
 
-  private static String bossThreadName(ServerPort port, String prefix) {
-    final InetSocketAddress localAddr = port.localAddress();
-    final String localHostName =
-        localAddr.getAddress().isAnyLocalAddress() ? "*" : localAddr.getHostString();
+        try {
+            if (host != null) {
+                serverBootstrap.bind(host, port).sync();
+            } else {
+                serverBootstrap.bind(port).sync();
+            }
+        } catch (Throwable e) {
+            final boolean isBindError = isBindError(e);
 
-    // e.g. 'armeria-boss-http-*:8080'
-    //      'armeria-boss-http-127.0.0.1:8443'
-    //      'armeria-boss-proxy+http+https-127.0.0.1:8443'
-    final String protocolNames = port.protocols().stream()
-        .map(SessionProtocol::uriText)
-        .collect(Collectors.joining("+"));
-    return "microspace-" + prefix + "-" + protocolNames + '-' + localHostName + ':' + localAddr.getPort();
-  }
+            if (log.isErrorEnabled()) {
+                if (isBindError) {
+                    log.error("Unable to start server. Port already {} in use.", port);
+                } else {
+                    log.error("Error starting Micronaut server: " + e.getMessage(), e);
+                }
+            }
+
+            final int attemptCount = attempts.getAndIncrement();
+            final int restartCount = config().serverRestartCount();
+
+            if (isRandomPort && attemptCount < restartCount) {
+                port = FreePortFinder.findFreeLocalPort();
+                bindServerToHost(serverBootstrap, host, port, attempts);
+            } else {
+                throw new ServerStartupException("Unable to start Micronaut server on port: " + port, e);
+            }
+        }
+    }
+
+    public void stop() {
+        if (isRunning() && workerGroup != null) {
+            if (isRunning.compareAndSet(true, false)) {
+                stopServerAndGroup();
+            }
+        }
+    }
+
+    private void stopServerAndGroup() {
+        final long quietPeriod = Duration.ofSeconds(2).toMillis();
+        final long timeout = Duration.ofSeconds(15).toMillis();
+        if (parentGroup != null) {
+            parentGroup.shutdownGracefully(quietPeriod, timeout, TimeUnit.MILLISECONDS)
+                    .addListener(this::logShutdownErrorIfNecessary);
+        }
+        if (workerGroup != null) {
+            workerGroup.shutdownGracefully(quietPeriod, timeout, TimeUnit.MILLISECONDS)
+                    .addListener(this::logShutdownErrorIfNecessary);
+        }
+    }
+
+    private void logShutdownErrorIfNecessary(Future<?> future) {
+        if (!future.isSuccess()) {
+            if (log.isWarnEnabled()) {
+                Throwable e = future.cause();
+                log.warn("Error stopping Microspace server: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    private boolean isBindError(Throwable e) {
+        return e.getClass().getName().equals(BindException.class.getName());
+    }
+
+    @SuppressWarnings("rawtypes")
+    private void processOptions(Map<ChannelOption<?>, Object> options, BiConsumer<ChannelOption, Object> biConsumer) {
+        options.forEach(biConsumer);
+    }
+
+    private ConnectionLimitHandler createAcceptLimiter() {
+        return new ConnectionLimitHandler(config().maxNumConnections());
+    }
+
+    private EventLoopGroup createWorkerEventLoopGroup() {
+        return createEventLoopGroup("worker" + config.serverThreadName());
+    }
+
+    private EventLoopGroup createParentEventLoopGroup() {
+        return createEventLoopGroup("parent" + config.serverThreadName());
+    }
+
+    private ServerThreadNamer withThreadName(String prefix) {
+        return new ServerThreadNamer(eventLoopGroupName(config().serverPort(), prefix));
+    }
+
+    private Class<? extends ServerChannel> transportChannel() {
+        return TransportType.detectTransportType().serverChannelType();
+    }
+
+    private static String eventLoopGroupName(ServerPort port, String prefix) {
+        final InetSocketAddress localAddr = port.localAddress();
+        final String localHostName =
+                localAddr.getAddress().isAnyLocalAddress() ? "*" : localAddr.getHostString();
+
+        // e.g. 'armeria-boss-http-*:8080'
+        //      'armeria-boss-http-127.0.0.1:8443'
+        //      'armeria-boss-proxy+http+https-127.0.0.1:8443'
+        final String protocolNames = port.protocols().stream()
+                .map(SessionProtocol::uriText)
+                .collect(Collectors.joining("+"));
+        return "microspace-" + prefix + "-" + protocolNames + '-' + localHostName + ':' + localAddr.getPort();
+    }
+
+    private EventLoopGroup createEventLoopGroup(String threadName) {
+        return TransportType.detectTransportType()
+                .newEventLoopGroup(config.ioThreadCount(),
+                        transportType -> withThreadName(threadName));
+    }
+
+    public boolean isRunning() {
+        return isRunning.get();
+    }
+
+    public ServerConfig config() {
+        return config;
+    }
 }
