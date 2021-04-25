@@ -27,8 +27,8 @@ package io.microspace.context.banner;
  * @author i1619kHz
  */
 public interface BannerFont {
-  String FONT_3_D = "3-D";
-  String FONT_3D_ASCII = "3D-ASCII";
-  String FONT_3D_DIAGONAL = "3D_Diagonal";
-  String FONT_DEFAULT = "Standard";
+    String FONT_3_D = "3-D";
+    String FONT_3D_ASCII = "3D-ASCII";
+    String FONT_3D_DIAGONAL = "3D_Diagonal";
+    String FONT_DEFAULT = "Standard";
 }

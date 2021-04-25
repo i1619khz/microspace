@@ -30,6 +30,6 @@ package io.microspace.context.ansi;
  */
 public interface AnsiElement {
 
-  @Override
-  String toString();
+    @Override
+    String toString();
 }

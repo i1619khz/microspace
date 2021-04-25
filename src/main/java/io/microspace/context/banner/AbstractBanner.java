@@ -30,16 +30,16 @@ import java.io.PrintStream;
  */
 public abstract class AbstractBanner implements Banner {
 
-  public abstract void prePrintBannerText(PrintStream printStream, String bannerText, String bannerFont);
+    public abstract void prePrintBannerText(PrintStream printStream, String bannerText, String bannerFont);
 
-  public abstract String setUpPadding(Integer strapLineSize);
+    public abstract String setUpPadding(Integer strapLineSize);
 
-  public abstract void printTextAndVersion(PrintStream printStream, String padding);
+    public abstract void printTextAndVersion(PrintStream printStream, String padding);
 
-  @Override
-  public void printBanner(PrintStream printStream, String bannerText, String bannerFont) {
-    this.prePrintBannerText(printStream, bannerText, bannerFont);
-    final String padding = setUpPadding(42);
-    this.printTextAndVersion(printStream, padding);
-  }
+    @Override
+    public void printBanner(PrintStream printStream, String bannerText, String bannerFont) {
+        this.prePrintBannerText(printStream, bannerText, bannerFont);
+        final String padding = setUpPadding(42);
+        this.printTextAndVersion(printStream, padding);
+    }
 }
