@@ -123,11 +123,11 @@ public final class Server {
         if (config().mainType() != null) {
             String applicationName = config.mainType().getName();
             if (log.isInfoEnabled()) {
-                log.trace("Binding {} server to {}:{}", applicationName, host != null ? host : "*", port);
+                log.info("Binding {} server to {}:{}", applicationName, host != null ? host : "*", port);
             }
         } else {
             if (log.isInfoEnabled()) {
-                log.trace("Binding server to {}:{}", host != null ? host : "*", port);
+                log.info("Binding server to {}:{}", host != null ? host : "*", port);
             }
         }
 
