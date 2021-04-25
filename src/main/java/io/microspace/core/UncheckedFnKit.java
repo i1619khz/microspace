@@ -23,25 +23,25 @@
  */
 package io.microspace.core;
 
-import org.jetbrains.annotations.NotNull;
-
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Function;
 
 /**
  * @author i1619kHz
  */
-public final class ThreadFactories {
-  public static ThreadFactory newEventLoopThreadFactory(String prefix, boolean useDaemonThreads) {
-    return new ThreadFactory() {
-      private final LongAdder threadNumber = new LongAdder();
+public class UncheckedFnKit {
 
-      @Override
-      public Thread newThread(@NotNull Runnable r) {
-        final Thread thread = new Thread(r, prefix + "thread-" + threadNumber.intValue());
-        thread.setDaemon(useDaemonThreads);
-        return thread;
-      }
-    };
-  }
+    @FunctionalInterface
+    public interface FunctionWithExceptions<T, R, E extends Throwable> {
+        R apply(T t) throws E;
+    }
+
+    public static <T, R> Function<T, R> function(FunctionWithExceptions<T, R, Throwable> function) {
+        return t -> {
+            try {
+                return function.apply(t);
+            } catch (Throwable throwable) {
+                throw new RuntimeException(throwable);
+            }
+        };
+    }
 }
