@@ -39,76 +39,76 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.METHOD})
 public @interface CorsDecorator {
-  /**
-   * Allowed origins.
-   * Sets this property to be {@code "*"} to allow any origin.
-   */
-  String[] origins();
+    /**
+     * Allowed origins.
+     * Sets this property to be {@code "*"} to allow any origin.
+     */
+    String[] origins();
 
-  /**
-   * The path patterns that this policy is supposed to be applied to. If unspecified, all paths would be
-   * accepted.
-   */
-  String[] pathPatterns() default {};
+    /**
+     * The path patterns that this policy is supposed to be applied to. If unspecified, all paths would be
+     * accepted.
+     */
+    String[] pathPatterns() default {};
 
-  /**
-   * The allowed HTTP request methods that should be returned in the
-   * CORS {@code "Access-Control-Allow-Methods"} response header.
-   *
-   * @see CorsPolicyBuilder#allowRequestMethods(HttpMethod...)
-   */
-  HttpMethod[] allowedRequestMethods() default {};
+    /**
+     * The allowed HTTP request methods that should be returned in the
+     * CORS {@code "Access-Control-Allow-Methods"} response header.
+     *
+     * @see CorsPolicyBuilder#allowRequestMethods(HttpMethod...)
+     */
+    HttpMethod[] allowedRequestMethods() default {};
 
-  /**
-   * The value of the CORS {@code "Access-Control-Max-Age"} response header which enables the
-   * caching of the preflight response for the specified time. During this time no preflight
-   * request will be made.
-   *
-   * @see CorsPolicyBuilder#maxAge(long)
-   */
-  long maxAge() default 0;
+    /**
+     * The value of the CORS {@code "Access-Control-Max-Age"} response header which enables the
+     * caching of the preflight response for the specified time. During this time no preflight
+     * request will be made.
+     *
+     * @see CorsPolicyBuilder#maxAge(long)
+     */
+    long maxAge() default 0;
 
-  /**
-   * The headers to be exposed to calling clients.
-   *
-   * @see CorsPolicyBuilder#exposeHeaders(CharSequence...)
-   */
-  String[] exposedHeaders() default {};
+    /**
+     * The headers to be exposed to calling clients.
+     *
+     * @see CorsPolicyBuilder#exposeHeaders(CharSequence...)
+     */
+    String[] exposedHeaders() default {};
 
-  /**
-   * The headers that should be returned in the CORS {@code "Access-Control-Allow-Headers"}
-   * response header.
-   *
-   * @see CorsPolicyBuilder#allowRequestHeaders(CharSequence...)
-   */
-  String[] allowedRequestHeaders() default {};
+    /**
+     * The headers that should be returned in the CORS {@code "Access-Control-Allow-Headers"}
+     * response header.
+     *
+     * @see CorsPolicyBuilder#allowRequestHeaders(CharSequence...)
+     */
+    String[] allowedRequestHeaders() default {};
 
-  /**
-   * Determines if cookies are allowed to be added to CORS requests.
-   * Settings this to be {@code true} will set the CORS {@code "Access-Control-Allow-Credentials"}
-   * response header to {@code "true"}.
-   *
-   * <p>If unset, will be {@code false}.
-   *
-   * @see CorsPolicyBuilder#allowCredentials()
-   */
-  boolean credentialsAllowed() default false;
+    /**
+     * Determines if cookies are allowed to be added to CORS requests.
+     * Settings this to be {@code true} will set the CORS {@code "Access-Control-Allow-Credentials"}
+     * response header to {@code "true"}.
+     *
+     * <p>If unset, will be {@code false}.
+     *
+     * @see CorsPolicyBuilder#allowCredentials()
+     */
+    boolean credentialsAllowed() default false;
 
-  /**
-   * Determines if a {@code "null"} origin is allowed.
-   *
-   * <p>If unset, will be {@code false}.
-   *
-   * @see CorsPolicyBuilder#allowNullOrigin()
-   */
-  boolean nullOriginAllowed() default false;
+    /**
+     * Determines if a {@code "null"} origin is allowed.
+     *
+     * <p>If unset, will be {@code false}.
+     *
+     * @see CorsPolicyBuilder#allowNullOrigin()
+     */
+    boolean nullOriginAllowed() default false;
 
-  /**
-   * Determines if no preflight response headers should be added to a CORS preflight response.
-   *
-   * <p>If unset, will be {@code false}.
-   *
-   * @see CorsPolicyBuilder#disablePreflightResponseHeaders()
-   */
-  boolean preflightRequestDisabled() default false;
+    /**
+     * Determines if no preflight response headers should be added to a CORS preflight response.
+     *
+     * <p>If unset, will be {@code false}.
+     *
+     * @see CorsPolicyBuilder#disablePreflightResponseHeaders()
+     */
+    boolean preflightRequestDisabled() default false;
 }

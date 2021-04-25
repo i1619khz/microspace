@@ -36,5 +36,5 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Error {
-  Class<? extends Throwable> value();
+    Class<? extends Throwable> value();
 }
