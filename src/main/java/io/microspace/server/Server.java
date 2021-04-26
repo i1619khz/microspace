@@ -23,10 +23,13 @@
  */
 package io.microspace.server;
 
+import com.google.common.base.Joiner;
 import io.microspace.core.FreePortFinder;
 import io.microspace.core.ServerThreadNamer;
 import io.microspace.core.TransportType;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
@@ -39,15 +42,24 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.BindException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * @author i1619kHz
@@ -56,6 +68,8 @@ public final class Server {
     private static final Logger log = LoggerFactory.getLogger(Server.class);
 
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
+    private final Set<ServerChannel> serverChannels = new CopyOnWriteArraySet<>();
+    private final Map<InetSocketAddress, ServerPort> activePorts = new LinkedHashMap<>();
     private final ServerConfig config;
     private SslContext sslContext;
     private EventLoopGroup parentGroup;
@@ -105,37 +119,54 @@ public final class Server {
             this.parentGroup = createParentEventLoopGroup();
             this.workerGroup = createWorkerEventLoopGroup();
 
-            final HttpServerInitializer initializer = new HttpServerInitializer(sslContext);
+            final HttpServerInitializer initializer = new HttpServerInitializer(config, sslContext);
             serverBootstrap.group(parentGroup, workerGroup).handler(createAcceptLimiter())
                     .channel(transportChannel()).childHandler(initializer);
 
             processOptions(config.channelOptions(), serverBootstrap::option);
             processOptions(config.childChannelOptions(), serverBootstrap::option);
 
-            bindServerToHost(serverBootstrap, config.serverPort().host(),
-                    config.serverPort().port(), new AtomicInteger(0));
+            // Initialize the server sockets asynchronously.
+            final CompletableFuture<Void> future = new CompletableFuture<>();
+            List<ServerPort> ports = config.ports();
+            final Iterator<ServerPort> it = ports.iterator();
+            assert it.hasNext();
+
+            final ServerPort primary = it.next();
+            final AtomicInteger attempts = new AtomicInteger(0);
+            bindServerToHost(serverBootstrap, primary, attempts)
+                    .addListener(new ServerPortStartListener(primary))
+                    .addListener(new ChannelFutureListener() {
+                        @Override
+                        public void operationComplete(ChannelFuture f) throws Exception {
+                            if (!f.isSuccess()) {
+                                future.completeExceptionally(f.cause());
+                                return;
+                            }
+                            if (!it.hasNext()) {
+                                future.complete(null);
+                                return;
+                            }
+
+                            final ServerPort next = it.next();
+                            AtomicInteger attempts = new AtomicInteger(0);
+                            bindServerToHost(serverBootstrap, next, attempts)
+                                    .addListener(new ServerPortStartListener(next)).addListener(this);
+                        }
+                    });
         }
     }
 
-    private void bindServerToHost(ServerBootstrap serverBootstrap, String host, int port, AtomicInteger attempts) {
+    private ChannelFuture bindServerToHost(ServerBootstrap serverBootstrap, ServerPort serverPort, AtomicInteger attempts) {
+        final String host = serverPort.host();
+        int port = serverPort.port();
         final boolean isRandomPort = port == -1;
-
-        if (config().mainType() != null) {
-            String applicationName = config.mainType().getName();
-            if (log.isInfoEnabled()) {
-                log.info("Binding {} server to {}:{}", applicationName, host != null ? host : "*", port);
-            }
-        } else {
-            if (log.isInfoEnabled()) {
-                log.info("Binding server to {}:{}", host != null ? host : "*", port);
-            }
-        }
 
         try {
             if (host != null) {
-                serverBootstrap.bind(host, port).sync();
+                return serverBootstrap.bind(host, port).sync();
             } else {
-                serverBootstrap.bind(port).sync();
+                return serverBootstrap.bind(port).sync();
             }
         } catch (Throwable e) {
             final boolean isBindError = isBindError(e);
@@ -152,10 +183,58 @@ public final class Server {
             final int restartCount = config().serverRestartCount();
 
             if (isRandomPort && attemptCount < restartCount) {
-                port = FreePortFinder.findFreeLocalPort();
-                bindServerToHost(serverBootstrap, host, port, attempts);
+                port = FreePortFinder.findFreeLocalPort(port);
+                return bindServerToHost(serverBootstrap,
+                        new ServerPort(port, serverPort.protocols()), attempts);
             } else {
                 throw new ServerStartupException("Unable to start Microspace server on port: " + port, e);
+            }
+        }
+    }
+
+    private static boolean isLocalPort(ServerPort serverPort) {
+        final InetAddress address = serverPort.localAddress().getAddress();
+        return address.isAnyLocalAddress() || address.isLoopbackAddress();
+    }
+
+    private final class ServerPortStartListener implements ChannelFutureListener {
+
+        private final ServerPort port;
+
+        ServerPortStartListener(ServerPort port) {
+            this.port = requireNonNull(port, "port");
+        }
+
+        @Override
+        public void operationComplete(ChannelFuture f) {
+            final ServerChannel ch = (ServerChannel) f.channel();
+            assert ch.eventLoop().inEventLoop();
+            serverChannels.add(ch);
+
+            if (f.isSuccess()) {
+                final InetSocketAddress localAddress = (InetSocketAddress) ch.localAddress();
+                final ServerPort actualPort = new ServerPort(localAddress, port.protocols());
+
+                // Update the boss thread so its name contains the actual port.
+                Thread.currentThread().setName(eventLoopGroupName(actualPort, "parent"));
+
+                synchronized (activePorts) {
+                    // Update the map of active ports.
+                    activePorts.put(localAddress, actualPort);
+                }
+
+                if (config().mainType() != null) {
+                    String applicationName = config.mainType().getName();
+                    if (isLocalPort(actualPort)) {
+                        port.protocols().forEach(p -> log.info(
+                                "Binding {} Serving {} at {} - {}://127.0.0.1:{}/", applicationName,
+                                p.name(), localAddress, p.uriText(), localAddress.getPort()));
+                    }
+                } else {
+                    if (log.isInfoEnabled()) {
+                        log.info("Serving {} at {}", Joiner.on('+').join(port.protocols()), localAddress);
+                    }
+                }
             }
         }
     }
@@ -212,7 +291,7 @@ public final class Server {
     }
 
     private ServerThreadNamer withThreadName(String prefix) {
-        return new ServerThreadNamer(eventLoopGroupName(config().serverPort(), prefix));
+        return new ServerThreadNamer(eventLoopGroupName(config().ports().get(0), prefix));
     }
 
     private Class<? extends ServerChannel> transportChannel() {
