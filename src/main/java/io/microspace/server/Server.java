@@ -24,6 +24,7 @@
 package io.microspace.server;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Stopwatch;
 import io.microspace.core.FreePortFinder;
 import io.microspace.core.ServerThreadNamer;
 import io.microspace.core.TransportType;
@@ -97,19 +98,20 @@ public final class Server {
     }
 
     public void start() {
+        final Stopwatch startUpWatch = Stopwatch.createStarted();
         try {
-            final boolean ssl = config.useSsl();
+            final boolean ssl = config().useSsl();
             final SelfSignedCertificate ssc = new SelfSignedCertificate();
 
             if (!ssl) {
                 sslContext = null;
             }
 
-            final File sslCertFile = setKeyCertFileAndPriKey(config.sslCert(), ssc.certificate());
-            final File sslPrivateKeyFile = setKeyCertFileAndPriKey(config.sslPrivateKey(), ssc.privateKey());
+            final File sslCertFile = setKeyCertFileAndPriKey(config().sslCert(), ssc.certificate());
+            final File sslPrivateKeyFile = setKeyCertFileAndPriKey(config().sslPrivateKey(), ssc.privateKey());
 
             sslContext = SslContextBuilder.forServer(sslCertFile,
-                    sslPrivateKeyFile, config.sslPrivateKeyPass()).build();
+                    sslPrivateKeyFile, config().sslPrivateKeyPass()).build();
         } catch (Exception e) {
             log.error("Build SslContext exception", e);
         }
@@ -123,19 +125,19 @@ public final class Server {
             serverBootstrap.group(parentGroup, workerGroup).handler(createAcceptLimiter())
                     .channel(transportChannel()).childHandler(initializer);
 
-            processOptions(config.channelOptions(), serverBootstrap::option);
-            processOptions(config.childChannelOptions(), serverBootstrap::option);
+            processOptions(config().channelOptions(), serverBootstrap::option);
+            processOptions(config().childChannelOptions(), serverBootstrap::option);
 
             // Initialize the server sockets asynchronously.
             final CompletableFuture<Void> future = new CompletableFuture<>();
-            List<ServerPort> ports = config.ports();
+            List<ServerPort> ports = config().ports();
             final Iterator<ServerPort> it = ports.iterator();
             assert it.hasNext();
 
             final ServerPort primary = it.next();
             final AtomicInteger attempts = new AtomicInteger(0);
             bindServerToHost(serverBootstrap, primary, attempts)
-                    .addListener(new ServerPortStartListener(primary))
+                    .addListener(new ServerPortStartListener(primary, startUpWatch))
                     .addListener(new ChannelFutureListener() {
                         @Override
                         public void operationComplete(ChannelFuture f) throws Exception {
@@ -151,7 +153,7 @@ public final class Server {
                             final ServerPort next = it.next();
                             AtomicInteger attempts = new AtomicInteger(0);
                             bindServerToHost(serverBootstrap, next, attempts)
-                                    .addListener(new ServerPortStartListener(next)).addListener(this);
+                                    .addListener(new ServerPortStartListener(next, startUpWatch)).addListener(this);
                         }
                     });
         }
@@ -163,6 +165,7 @@ public final class Server {
         final boolean isRandomPort = port == -1;
 
         try {
+            isRunning.compareAndSet(false, true);
             if (host != null) {
                 return serverBootstrap.bind(host, port).sync();
             } else {
@@ -200,9 +203,11 @@ public final class Server {
     private final class ServerPortStartListener implements ChannelFutureListener {
 
         private final ServerPort port;
+        private final Stopwatch startupWatch;
 
-        ServerPortStartListener(ServerPort port) {
+        ServerPortStartListener(ServerPort port, Stopwatch startupWatch) {
             this.port = requireNonNull(port, "port");
+            this.startupWatch = requireNonNull(startupWatch, "startupWatch");
         }
 
         @Override
@@ -224,7 +229,7 @@ public final class Server {
                 }
 
                 if (config().mainType() != null) {
-                    String applicationName = config.mainType().getName();
+                    String applicationName = config().mainType().getName();
                     if (isLocalPort(actualPort)) {
                         port.protocols().forEach(p -> log.info(
                                 "Binding {} Serving {} at {} - {}://127.0.0.1:{}/", applicationName,
@@ -235,14 +240,24 @@ public final class Server {
                         log.info("Serving {} at {}", Joiner.on('+').join(port.protocols()), localAddress);
                     }
                 }
+                startupWatch.stop();
+                if (log.isInfoEnabled()) {
+                    log.info("Serving startup time {}{}", startupWatch.elapsed().toMillis(), "ms");
+                }
             }
         }
     }
 
     public void stop() {
+        final Stopwatch stopwatch = Stopwatch.createStarted();
         if (isRunning() && workerGroup != null) {
             if (isRunning.compareAndSet(true, false)) {
                 stopServerAndGroup();
+            }
+
+            stopwatch.stop();
+            if (log.isInfoEnabled()) {
+                log.info("Serving stop time {}{}", stopwatch.elapsed().toMillis(), "ms");
             }
         }
     }
@@ -283,11 +298,11 @@ public final class Server {
     }
 
     private EventLoopGroup createWorkerEventLoopGroup() {
-        return createEventLoopGroup("worker" + config.serverThreadName());
+        return createEventLoopGroup("worker" + config().serverThreadName());
     }
 
     private EventLoopGroup createParentEventLoopGroup() {
-        return createEventLoopGroup("parent" + config.serverThreadName());
+        return createEventLoopGroup("parent" + config().serverThreadName());
     }
 
     private ServerThreadNamer withThreadName(String prefix) {
@@ -314,7 +329,7 @@ public final class Server {
 
     private EventLoopGroup createEventLoopGroup(String threadName) {
         return TransportType.detectTransportType()
-                .newEventLoopGroup(config.ioThreadCount(),
+                .newEventLoopGroup(config().ioThreadCount(),
                         transportType -> withThreadName(threadName));
     }
 
@@ -324,5 +339,13 @@ public final class Server {
 
     public ServerConfig config() {
         return config;
+    }
+
+    public Set<ServerChannel> serverChannels() {
+        return serverChannels;
+    }
+
+    public Map<InetSocketAddress, ServerPort> activePorts() {
+        return activePorts;
     }
 }
