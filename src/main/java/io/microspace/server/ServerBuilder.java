@@ -24,28 +24,50 @@
 package io.microspace.server;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import io.microspace.context.banner.Banner;
 import io.microspace.context.banner.DefaultApplicationBanner;
 import io.microspace.core.Flags;
 import io.microspace.core.UncheckedFnKit;
+import io.microspace.server.http.HttpMethod;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.epoll.EpollChannelOption;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static io.microspace.server.SessionProtocol.HTTP;
+import static io.microspace.server.SessionProtocol.HTTPS;
+import static io.microspace.server.SessionProtocol.PROXY;
 import static java.util.Objects.requireNonNull;
 
 /**
  * @author i1619kHz
  */
 public final class ServerBuilder {
+
+    // Prohibit deprecated options
+    @SuppressWarnings("deprecation")
+    private static final Set<ChannelOption<?>> PROHIBITED_SOCKET_OPTIONS = ImmutableSet.of(
+            ChannelOption.ALLOW_HALF_CLOSURE, ChannelOption.AUTO_READ,
+            ChannelOption.AUTO_CLOSE, ChannelOption.MAX_MESSAGES_PER_READ,
+            ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, ChannelOption.WRITE_BUFFER_LOW_WATER_MARK,
+            EpollChannelOption.EPOLL_MODE);
+
+    static final long MIN_PING_INTERVAL_MILLIS = 1000L;
+    private static final long MIN_MAX_CONNECTION_AGE_MILLIS = 1_000L;
+
     private final List<Interceptor> interceptors = new ArrayList<>();
     private final List<Filter> filters = new ArrayList<>();
     private final List<View> views = new ArrayList<>();
@@ -63,7 +85,7 @@ public final class ServerBuilder {
     private final Map<ChannelOption<?>, Object> channelOptions = new HashMap<>();
     private final Map<ChannelOption<?>, Object> childChannelOptions = new HashMap<>();
     private HandlerExecutionChain handlerExecutionChain = new DefaultHandlerExecutionChain();
-    private ServerPort serverPort = new ServerPort(Flags.defaultPort(), SessionProtocol.HTTP);
+    private List<ServerPort> ports = new ArrayList<>();
     private Banner banner = new DefaultApplicationBanner();
     private String bannerText = Flags.bannerText();
     private String bannerFont = Flags.bannerFont();
@@ -101,12 +123,12 @@ public final class ServerBuilder {
 
     public ServerBuilder http(int serverPort) {
         checkArgument(serverPort > 0 && serverPort <= 65533, "Port number must be available");
-        return this.port(new ServerPort(serverPort, SessionProtocol.HTTP));
+        return this.port(new ServerPort(serverPort, HTTP));
     }
 
     public ServerBuilder https(int serverPort) {
         checkArgument(serverPort > 0 && serverPort <= 65533, "Port number must be available");
-        return this.port(new ServerPort(serverPort, SessionProtocol.HTTPS));
+        return this.port(new ServerPort(serverPort, HTTPS));
     }
 
     public ServerBuilder port(InetSocketAddress localAddress) {
@@ -116,7 +138,7 @@ public final class ServerBuilder {
 
     public ServerBuilder banner(Banner banner) {
         checkNotNull(banner, "Banner can't be null");
-        this.banner = banner;
+        this.banner = requireNonNull(banner);
         return this;
     }
 
@@ -125,7 +147,7 @@ public final class ServerBuilder {
      */
     public ServerBuilder port(ServerPort port) {
         checkNotNull(port, "ServerPort can't be null");
-        this.serverPort = requireNonNull(port);
+        this.ports.add(requireNonNull(port));
         return this;
     }
 
@@ -240,8 +262,8 @@ public final class ServerBuilder {
      * @return this
      */
     public ServerBuilder websocket(String prefix, WebSocketChannel wsChannel) {
-        checkNotNull(prefix, "prefix");
-        checkNotNull(wsChannel, "webSocketChannel");
+        checkNotNull(prefix, "prefix can't be null");
+        checkNotNull(wsChannel, "webSocketChannel can't be null");
         this.websSocketSessions.put(prefix, wsChannel);
         return this;
     }
@@ -253,8 +275,8 @@ public final class ServerBuilder {
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder get(String path, RequestHandler requestHandler) {
-        return this.route(path, HttpMethod.GET, requestHandler);
+    public ServerBuilder get(String path, RequestHandler handler) {
+        return this.route(path, HttpMethod.GET, handler);
     }
 
     /**
@@ -264,8 +286,8 @@ public final class ServerBuilder {
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder post(String path, RequestHandler requestHandler) {
-        return this.route(path, HttpMethod.POST, requestHandler);
+    public ServerBuilder post(String path, RequestHandler handler) {
+        return this.route(path, HttpMethod.POST, handler);
     }
 
     /**
@@ -275,8 +297,8 @@ public final class ServerBuilder {
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder head(String path, RequestHandler requestHandler) {
-        return this.route(path, HttpMethod.HEAD, requestHandler);
+    public ServerBuilder head(String path, RequestHandler handler) {
+        return this.route(path, HttpMethod.HEAD, handler);
     }
 
     /**
@@ -286,8 +308,8 @@ public final class ServerBuilder {
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder put(String path, RequestHandler requestHandler) {
-        return this.route(path, HttpMethod.PUT, requestHandler);
+    public ServerBuilder put(String path, RequestHandler handler) {
+        return this.route(path, HttpMethod.PUT, handler);
     }
 
     /**
@@ -297,8 +319,8 @@ public final class ServerBuilder {
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder patch(String path, RequestHandler requestHandler) {
-        return this.route(path, HttpMethod.PATCH, requestHandler);
+    public ServerBuilder patch(String path, RequestHandler handler) {
+        return this.route(path, HttpMethod.PATCH, handler);
     }
 
     /**
@@ -308,8 +330,8 @@ public final class ServerBuilder {
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder delete(String path, RequestHandler requestHandler) {
-        return this.route(path, HttpMethod.DELETE, requestHandler);
+    public ServerBuilder delete(String path, RequestHandler handler) {
+        return this.route(path, HttpMethod.DELETE, handler);
     }
 
     /**
@@ -319,8 +341,8 @@ public final class ServerBuilder {
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder options(String path, RequestHandler requestHandler) {
-        return this.route(path, HttpMethod.OPTIONS, requestHandler);
+    public ServerBuilder options(String path, RequestHandler handler) {
+        return this.route(path, HttpMethod.OPTIONS, handler);
     }
 
     /**
@@ -330,8 +352,8 @@ public final class ServerBuilder {
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder trace(String path, RequestHandler requestHandler) {
-        return this.route(path, HttpMethod.TRACE, requestHandler);
+    public ServerBuilder trace(String path, RequestHandler handler) {
+        return this.route(path, HttpMethod.TRACE, handler);
     }
 
     /**
@@ -341,10 +363,10 @@ public final class ServerBuilder {
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder route(String path, HttpMethod httpMethod, RequestHandler requestHandler) {
+    private ServerBuilder route(String path, HttpMethod httpMethod, RequestHandler handler) {
         checkNotNull(path, "Path can't be null");
         checkNotNull(httpMethod, "Need to specify of http request method registered");
-        checkNotNull(requestHandler, "RequestHandler object can't be null");
+        checkNotNull(handler, "RequestHandler object can't be null");
         return this;
     }
 
@@ -468,9 +490,26 @@ public final class ServerBuilder {
         return this;
     }
 
-    public void propertyEnvType(PropertyEnvType propertyEnvType) {
+    public ServerBuilder propertyEnvType(PropertyEnvType propertyEnvType) {
         checkNotNull(propertyEnvType, "propertyEnvType can't be null");
         this.propertyEnvType = propertyEnvType;
+        return this;
+    }
+
+    public ServerBuilder channelOption(ChannelOption<?> channelOption, Object value) {
+        checkNotNull(channelOption, "channelOption can't be null");
+        checkNotNull(value, "value can't be null");
+        checkState(!PROHIBITED_SOCKET_OPTIONS.contains(channelOption), "prohibited socket options");
+        this.channelOptions.put(channelOption, value);
+        return this;
+    }
+
+    public ServerBuilder childChannelOption(ChannelOption<?> channelOption, Object value) {
+        checkNotNull(channelOption, "channelOption can't be null");
+        checkNotNull(value, "value can't be null");
+        checkState(!PROHIBITED_SOCKET_OPTIONS.contains(channelOption), "prohibited socket options");
+        this.childChannelOptions.put(channelOption, value);
+        return this;
     }
 
     public Server build() {
@@ -493,12 +532,70 @@ public final class ServerBuilder {
     }
 
     /**
+     * Returns a list of {@link ServerPort}s which consists of distinct port numbers except for the port
+     * {@code 0}. If there are the same port numbers with different {@link SessionProtocol}s,
+     * their {@link SessionProtocol}s will be merged into a single {@link ServerPort} instance.
+     * The returned list is sorted as the same order of the specified {@code ports}.
+     */
+    private static List<ServerPort> resolveDistinctPorts(List<ServerPort> ports) {
+        final List<ServerPort> distinctPorts = new ArrayList<>();
+        for (final ServerPort p : ports) {
+            boolean found = false;
+            // Do not check the port number 0 because a user may want his or her server to be bound
+            // on multiple arbitrary ports.
+            if (p.localAddress().getPort() > 0) {
+                for (int i = 0; i < distinctPorts.size(); i++) {
+                    final ServerPort port = distinctPorts.get(i);
+                    if (port.localAddress().equals(p.localAddress())) {
+                        final ServerPort merged =
+                                new ServerPort(port.localAddress(),
+                                        Sets.union(port.protocols(), p.protocols()));
+                        distinctPorts.set(i, merged);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if (!found) {
+                distinctPorts.add(p);
+            }
+        }
+        return Collections.unmodifiableList(distinctPorts);
+    }
+
+    /**
      * Build {@link Server}
      *
      * @return Http Server
      */
     public Server build(Class<?> mainType, String[] args) {
         Flags.propertyEnvType(propertyEnvType == null ? PropertyEnvType.SYS_PROPERTY : propertyEnvType);
+
+        this.ports.forEach(
+                port -> checkState(port.protocols().stream().anyMatch(p -> p != PROXY),
+                        "protocols: %s (expected: at least one %s or %s)",
+                        port.protocols(), HTTP, HTTPS));
+
+        if (!this.ports.isEmpty()) {
+            ports = resolveDistinctPorts(this.ports);
+        } else {
+            ports = ImmutableList.of(Flags.defaultServerPort());
+        }
+
+        if (pingIntervalMillis > 0) {
+            pingIntervalMillis = Math.max(pingIntervalMillis, MIN_PING_INTERVAL_MILLIS);
+            if (idleTimeoutMillis > 0 && pingIntervalMillis >= idleTimeoutMillis) {
+                pingIntervalMillis = 0;
+            }
+        }
+
+        if (maxConnectionAgeMillis > 0) {
+            maxConnectionAgeMillis = Math.max(maxConnectionAgeMillis, MIN_MAX_CONNECTION_AGE_MILLIS);
+            if (idleTimeoutMillis == 0 || idleTimeoutMillis > maxConnectionAgeMillis) {
+                idleTimeoutMillis = maxConnectionAgeMillis;
+            }
+        }
+
         return new Server(new ServerConfig(mainType, args, this.banner, this.interceptors, this.filters,
                 this.views, this.viewResolvers, this.viewAdapters,
                 this.typeConverters, this.httpServices, this.argumentBinders,
@@ -507,7 +604,7 @@ public final class ServerBuilder {
                 this.channelOptions, this.childChannelOptions, this.useSsl, this.useEpoll,
                 this.handlerExecutionChain, this.bannerText, this.bannerFont, this.sessionKey,
                 this.viewSuffix, this.templateFolder, this.serverThreadName, this.profiles, this.useSession,
-                this.serverPort, this.maxNumConnections, this.http2InitialConnectionWindowSize,
+                this.ports, this.maxNumConnections, this.http2InitialConnectionWindowSize,
                 this.http2InitialStreamWindowSize, this.http2MaxFrameSize, this.http1MaxInitialLineLength,
                 this.http1MaxHeaderSize, this.http1MaxChunkSize, this.idleTimeoutMillis, this.pingIntervalMillis,
                 this.maxConnectionAgeMillis, this.http2MaxHeaderListSize, this.http2MaxStreamsPerConnection,
