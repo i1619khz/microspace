@@ -26,17 +26,14 @@ package io.microspace.server;
 import io.microspace.context.banner.Banner;
 import io.netty.channel.ChannelOption;
 
-import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * @author i1619kHz
  */
-public class ServerConfig {
-    @Nullable
-    private Server server;
-
+public final class ServerConfig {
     private final List<Interceptor> interceptors;
     private final List<Filter> filters;
     private final List<View> views;
@@ -54,6 +51,7 @@ public class ServerConfig {
     private final Map<ChannelOption<?>, Object> channelOptions;
     private final Map<ChannelOption<?>, Object> childChannelOptions;
     private final HandlerExecutionChain handlerExecutionChain;
+    private final Executor startStopExecutor;
     private final Banner banner;
 
     private final boolean useSsl;
@@ -67,7 +65,7 @@ public class ServerConfig {
     private final String templateFolder;
     private final String serverThreadName;
     private final String profiles;
-    private final ServerPort serverPort;
+    private final List<ServerPort> ports;
 
     private final int maxNumConnections;
     private final int http2InitialConnectionWindowSize;
@@ -102,9 +100,9 @@ public class ServerConfig {
                         List<HandlerExceptionResolver> handlerExceptionResolvers,
                         Map<String, WebSocketChannel> websSocketSessions, Map<String, Object> httpHandlerService,
                         Map<ChannelOption<?>, Object> channelOptions, Map<ChannelOption<?>, Object> childChannelOptions,
-                        boolean useSsl, boolean useEpoll, HandlerExecutionChain handlerExecutionChain, String bannerText,
+                        boolean useSsl, boolean useEpoll, Executor startStopExecutor, HandlerExecutionChain handlerExecutionChain, String bannerText,
                         String bannerFont, String sessionKey, String viewSuffix, String templateFolder,
-                        String serverThreadName, String profiles, boolean useSession, ServerPort serverPort,
+                        String serverThreadName, String profiles, boolean useSession, List<ServerPort> ports,
                         int maxNumConnections, int http2InitialConnectionWindowSize, int http2InitialStreamWindowSize,
                         int http2MaxFrameSize, int http1MaxInitialLineLength, int http1MaxHeaderSize,
                         int http1MaxChunkSize, long idleTimeoutMillis, long pingIntervalMillis,
@@ -131,6 +129,7 @@ public class ServerConfig {
         this.childChannelOptions = childChannelOptions;
         this.useSsl = useSsl;
         this.useEpoll = useEpoll;
+        this.startStopExecutor = startStopExecutor;
         this.handlerExecutionChain = handlerExecutionChain;
         this.bannerText = bannerText;
         this.bannerFont = bannerFont;
@@ -140,7 +139,7 @@ public class ServerConfig {
         this.serverThreadName = serverThreadName;
         this.profiles = profiles;
         this.useSession = useSession;
-        this.serverPort = serverPort;
+        this.ports = ports;
         this.maxNumConnections = maxNumConnections;
         this.http2InitialConnectionWindowSize = http2InitialConnectionWindowSize;
         this.http2InitialStreamWindowSize = http2InitialStreamWindowSize;
@@ -159,15 +158,6 @@ public class ServerConfig {
         this.sslCert = sslCert;
         this.sslPrivateKey = sslPrivateKey;
         this.sslPrivateKeyPass = sslPrivateKeyPass;
-    }
-
-    public void server(@Nullable Server server) {
-        this.server = server;
-    }
-
-    @Nullable
-    public Server server() {
-        return server;
     }
 
     public Class<?> mainType() {
@@ -286,8 +276,8 @@ public class ServerConfig {
         return useSession;
     }
 
-    public ServerPort serverPort() {
-        return serverPort;
+    public List<ServerPort> ports() {
+        return ports;
     }
 
     public int maxNumConnections() {
@@ -364,5 +354,9 @@ public class ServerConfig {
 
     public int serverRestartCount() {
         return serverRestartCount;
+    }
+
+    public Executor startStopExecutor() {
+        return startStopExecutor;
     }
 }

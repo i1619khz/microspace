@@ -34,6 +34,7 @@ import io.microspace.core.UncheckedFnKit;
 import io.microspace.server.http.HttpMethod;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.epoll.EpollChannelOption;
+import io.netty.util.concurrent.GlobalEventExecutor;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -85,6 +87,7 @@ public final class ServerBuilder {
     private final Map<ChannelOption<?>, Object> channelOptions = new HashMap<>();
     private final Map<ChannelOption<?>, Object> childChannelOptions = new HashMap<>();
     private HandlerExecutionChain handlerExecutionChain = new DefaultHandlerExecutionChain();
+    private Executor startStopExecutor = GlobalEventExecutor.INSTANCE;
     private List<ServerPort> ports = new ArrayList<>();
     private Banner banner = new DefaultApplicationBanner();
     private String bannerText = Flags.bannerText();
@@ -396,6 +399,11 @@ public final class ServerBuilder {
         return this;
     }
 
+    public ServerBuilder startStopExecutor(Executor startStopExecutor) {
+        this.startStopExecutor = requireNonNull(startStopExecutor, "startStopExecutor");
+        return this;
+    }
+
     public ServerBuilder maxNumConnections(int maxNumConnections) {
         checkArgument(maxNumConnections > 0, "maxNumConnections must > 0");
         this.maxNumConnections = maxNumConnections;
@@ -601,7 +609,7 @@ public final class ServerBuilder {
                 this.typeConverters, this.httpServices, this.argumentBinders,
                 this.handlerMappings, this.handlerAdapters, this.handlerInterceptors,
                 this.handlerExceptionResolvers, this.websSocketSessions, this.httpHandlerService,
-                this.channelOptions, this.childChannelOptions, this.useSsl, this.useEpoll,
+                this.channelOptions, this.childChannelOptions, this.useSsl, this.useEpoll,this.startStopExecutor,
                 this.handlerExecutionChain, this.bannerText, this.bannerFont, this.sessionKey,
                 this.viewSuffix, this.templateFolder, this.serverThreadName, this.profiles, this.useSession,
                 this.ports, this.maxNumConnections, this.http2InitialConnectionWindowSize,

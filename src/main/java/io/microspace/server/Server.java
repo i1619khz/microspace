@@ -98,7 +98,6 @@ public final class Server {
     }
 
     public void start() {
-        final Stopwatch startUpWatch = Stopwatch.createStarted();
         try {
             final boolean ssl = config().useSsl();
             final SelfSignedCertificate ssc = new SelfSignedCertificate();
@@ -136,26 +135,31 @@ public final class Server {
 
             final ServerPort primary = it.next();
             final AtomicInteger attempts = new AtomicInteger(0);
-            bindServerToHost(serverBootstrap, primary, attempts)
-                    .addListener(new ServerPortStartListener(primary, startUpWatch))
-                    .addListener(new ChannelFutureListener() {
-                        @Override
-                        public void operationComplete(ChannelFuture f) throws Exception {
-                            if (!f.isSuccess()) {
-                                future.completeExceptionally(f.cause());
-                                return;
-                            }
-                            if (!it.hasNext()) {
-                                future.complete(null);
-                                return;
-                            }
+            config().startStopExecutor().execute(new Runnable() {
+                @Override
+                public void run() {
+                    bindServerToHost(serverBootstrap, primary, attempts)
+                            .addListener(new ServerPortStartListener(primary))
+                            .addListener(new ChannelFutureListener() {
+                                @Override
+                                public void operationComplete(ChannelFuture f) throws Exception {
+                                    if (!f.isSuccess()) {
+                                        future.completeExceptionally(f.cause());
+                                        return;
+                                    }
+                                    if (!it.hasNext()) {
+                                        future.complete(null);
+                                        return;
+                                    }
 
-                            final ServerPort next = it.next();
-                            AtomicInteger attempts = new AtomicInteger(0);
-                            bindServerToHost(serverBootstrap, next, attempts)
-                                    .addListener(new ServerPortStartListener(next, startUpWatch)).addListener(this);
-                        }
-                    });
+                                    final ServerPort next = it.next();
+                                    AtomicInteger attempts = new AtomicInteger(0);
+                                    bindServerToHost(serverBootstrap, next, attempts)
+                                            .addListener(new ServerPortStartListener(next)).addListener(this);
+                                }
+                            });
+                }
+            });
         }
     }
 
@@ -203,15 +207,14 @@ public final class Server {
     private final class ServerPortStartListener implements ChannelFutureListener {
 
         private final ServerPort port;
-        private final Stopwatch startupWatch;
 
-        ServerPortStartListener(ServerPort port, Stopwatch startupWatch) {
+        ServerPortStartListener(ServerPort port) {
             this.port = requireNonNull(port, "port");
-            this.startupWatch = requireNonNull(startupWatch, "startupWatch");
         }
 
         @Override
         public void operationComplete(ChannelFuture f) {
+            final Stopwatch startupWatch = Stopwatch.createStarted();
             final ServerChannel ch = (ServerChannel) f.channel();
             assert ch.eventLoop().inEventLoop();
             serverChannels.add(ch);
@@ -249,17 +252,19 @@ public final class Server {
     }
 
     public void stop() {
-        final Stopwatch stopwatch = Stopwatch.createStarted();
-        if (isRunning() && workerGroup != null) {
-            if (isRunning.compareAndSet(true, false)) {
-                stopServerAndGroup();
-            }
+        config().startStopExecutor().execute(() -> {
+            final Stopwatch stopwatch = Stopwatch.createStarted();
+            if (isRunning() && workerGroup != null) {
+                if (isRunning.compareAndSet(true, false)) {
+                    stopServerAndGroup();
+                }
 
-            stopwatch.stop();
-            if (log.isInfoEnabled()) {
-                log.info("Serving stop time {}{}", stopwatch.elapsed().toMillis(), "ms");
+                stopwatch.stop();
+                if (log.isInfoEnabled()) {
+                    log.info("Serving stop time {}{}", stopwatch.elapsed().toMillis(), "ms");
+                }
             }
-        }
+        });
     }
 
     private void stopServerAndGroup() {
