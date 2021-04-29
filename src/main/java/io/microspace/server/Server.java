@@ -75,6 +75,7 @@ public final class Server {
     private SslContext sslContext;
     private EventLoopGroup parentGroup;
     private EventLoopGroup workerGroup;
+    private final Stopwatch startupWatch = Stopwatch.createUnstarted();
 
     Server(ServerConfig config, SslContext sslContext) {
         this.config = config;
@@ -98,6 +99,7 @@ public final class Server {
     }
 
     public void start() {
+        startupWatch.start();
         try {
             final boolean ssl = config().useSsl();
             final SelfSignedCertificate ssc = new SelfSignedCertificate();
@@ -129,37 +131,26 @@ public final class Server {
 
             // Initialize the server sockets asynchronously.
             final CompletableFuture<Void> future = new CompletableFuture<>();
+            final CompletableFuture<Void> startupWatchFuture = new CompletableFuture<>();
             List<ServerPort> ports = config().ports();
             final Iterator<ServerPort> it = ports.iterator();
             assert it.hasNext();
 
             final ServerPort primary = it.next();
             final AtomicInteger attempts = new AtomicInteger(0);
-            config().startStopExecutor().execute(new Runnable() {
-                @Override
-                public void run() {
-                    bindServerToHost(serverBootstrap, primary, attempts)
-                            .addListener(new ServerPortStartListener(primary))
-                            .addListener(new ChannelFutureListener() {
-                                @Override
-                                public void operationComplete(ChannelFuture f) throws Exception {
-                                    if (!f.isSuccess()) {
-                                        future.completeExceptionally(f.cause());
-                                        return;
-                                    }
-                                    if (!it.hasNext()) {
-                                        future.complete(null);
-                                        return;
-                                    }
-
-                                    final ServerPort next = it.next();
-                                    AtomicInteger attempts = new AtomicInteger(0);
-                                    bindServerToHost(serverBootstrap, next, attempts)
-                                            .addListener(new ServerPortStartListener(next)).addListener(this);
-                                }
-                            });
-                }
-            });
+            config().startStopExecutor().execute(() -> bindServerToHost(serverBootstrap, primary, attempts)
+                    .addListener(new ServerPortStartListener(primary))
+                    .addListener(new BindNextPortListener(future, it, serverBootstrap))
+                    .addListener((ChannelFutureListener) f -> {
+                        if (!f.isSuccess()) {
+                            startupWatchFuture.completeExceptionally(f.cause());
+                            return;
+                        }
+                        startupWatch.stop();
+                        if (log.isInfoEnabled()) {
+                            log.info("Serving startup time {}{}", startupWatch.elapsed().toMillis(), "ms");
+                        }
+                    }));
         }
     }
 
@@ -204,6 +195,36 @@ public final class Server {
         return address.isAnyLocalAddress() || address.isLoopbackAddress();
     }
 
+    private final class BindNextPortListener implements ChannelFutureListener {
+        private final CompletableFuture<Void> future;
+        private final Iterator<ServerPort> it;
+        private final ServerBootstrap serverBootstrap;
+
+        private BindNextPortListener(CompletableFuture<Void> future, Iterator<ServerPort> it,
+                                     ServerBootstrap serverBootstrap) {
+            this.future = future;
+            this.it = it;
+            this.serverBootstrap = serverBootstrap;
+        }
+
+        @Override
+        public void operationComplete(ChannelFuture f) {
+            if (!f.isSuccess()) {
+                future.completeExceptionally(f.cause());
+                return;
+            }
+            if (!it.hasNext()) {
+                future.complete(null);
+                return;
+            }
+
+            final ServerPort next = it.next();
+            AtomicInteger attempts = new AtomicInteger(0);
+            bindServerToHost(serverBootstrap, next, attempts)
+                    .addListener(new ServerPortStartListener(next)).addListener(this);
+        }
+    }
+
     private final class ServerPortStartListener implements ChannelFutureListener {
 
         private final ServerPort port;
@@ -214,7 +235,6 @@ public final class Server {
 
         @Override
         public void operationComplete(ChannelFuture f) {
-            final Stopwatch startupWatch = Stopwatch.createStarted();
             final ServerChannel ch = (ServerChannel) f.channel();
             assert ch.eventLoop().inEventLoop();
             serverChannels.add(ch);
@@ -242,10 +262,6 @@ public final class Server {
                     if (log.isInfoEnabled()) {
                         log.info("Serving {} at {}", Joiner.on('+').join(port.protocols()), localAddress);
                     }
-                }
-                startupWatch.stop();
-                if (log.isInfoEnabled()) {
-                    log.info("Serving startup time {}{}", startupWatch.elapsed().toMillis(), "ms");
                 }
             }
         }
