@@ -294,6 +294,18 @@ public final class Server {
             workerGroup.shutdownGracefully(quietPeriod, timeout, TimeUnit.MILLISECONDS)
                     .addListener(this::logShutdownErrorIfNecessary);
         }
+
+        try {
+            if (parentGroup.awaitTermination(3000, TimeUnit.MILLISECONDS)) {
+                log.info("Parent EventLoopGroup is closed");
+            }
+            if (workerGroup.awaitTermination(3000, TimeUnit.MILLISECONDS)) {
+                log.info("Worker EventLoopGroup is closed");
+            }
+        } catch (InterruptedException e) {
+            log.error("Interrupt EventLoopGroup terminate", e);
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void logShutdownErrorIfNecessary(Future<?> future) {
@@ -339,9 +351,9 @@ public final class Server {
         final String localHostName =
                 localAddr.getAddress().isAnyLocalAddress() ? "*" : localAddr.getHostString();
 
-        // e.g. 'armeria-boss-http-*:8080'
-        //      'armeria-boss-http-127.0.0.1:8443'
-        //      'armeria-boss-proxy+http+https-127.0.0.1:8443'
+        // e.g. 'microspace-boss-http-*:8080'
+        //      'microspace-boss-http-127.0.0.1:8443'
+        //      'microspace-boss-proxy+http+https-127.0.0.1:8443'
         final String protocolNames = port.protocols().stream()
                 .map(SessionProtocol::uriText)
                 .collect(Collectors.joining("+"));
