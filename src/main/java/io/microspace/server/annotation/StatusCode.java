@@ -35,6 +35,6 @@ import java.lang.annotation.Target;
 @Documented
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Status {
-    int status() default 200;
+public @interface StatusCode {
+    int value();
 }
