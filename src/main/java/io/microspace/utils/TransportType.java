@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.core;
+package io.microspace.utils;
 
 import com.google.common.base.Ascii;
 import com.google.common.collect.ImmutableSet;

@@ -21,10 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.core;
+package io.microspace.utils;
 
 import io.microspace.context.banner.BannerFont;
-import io.microspace.server.PropertyEnvType;
+import io.microspace.server.ServerPort;
+import io.microspace.server.SessionProtocol;
 
 import java.util.regex.Pattern;
 
@@ -34,6 +35,7 @@ import java.util.regex.Pattern;
 public final class Flags {
     private static final Pattern PROPERTIES_REGEX = Pattern.compile(".*\\.properties");
     private static final Pattern YML_REGEX = Pattern.compile(".*\\.yml");
+    private static final String HTTP_URL_PREFIX = "http://localhost";
 
     private static final int DEFAULT_MAX_CONNECTION_COUNT = Integer.MAX_VALUE;
     private static final int DEFAULT_HTTP2_INITIAL_CONNECTION_WINDOWS_SIZE = 0;
@@ -63,8 +65,6 @@ public final class Flags {
     private static final boolean USE_EPOLL = Epolls.epollIsAvailable();
     private static final int DEFAULT_PORT = 8080;
 
-    private static PropertyEnvType propertyEnvType;
-
     private static final String SSL_CERT = "";
     private static final String SSL_PRIVATE_KEY = "";
     private static final String SSL_PRIVATE_KEY_PASS = "";
@@ -72,9 +72,10 @@ public final class Flags {
     private static final int MAX_CONNECTION_COUNT = DEFAULT_MAX_CONNECTION_COUNT;
     private static final int ACCEPT_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
     private static final int IO_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 2;
+    private static final ServerPort DEFAULT_SERVER_PORT = new ServerPort(Flags.defaultPort(), SessionProtocol.HTTP);
 
-    public static void propertyEnvType(PropertyEnvType type) {
-        propertyEnvType = type;
+    public static ServerPort defaultServerPort() {
+        return DEFAULT_SERVER_PORT;
     }
 
     public static Pattern propertiesRegex() {
@@ -193,11 +194,7 @@ public final class Flags {
         return 3;
     }
 
-    public String getProperty(String key) {
-        String value = propertyEnvType.getPropertyEnv().get(key);
-        if (null != value) {
-            value = value.toLowerCase();
-        }
-        return value;
+    public static String httpUrlPrefix() {
+        return HTTP_URL_PREFIX;
     }
 }
