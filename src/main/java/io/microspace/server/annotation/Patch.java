@@ -35,6 +35,6 @@ import java.lang.annotation.Target;
 @Documented
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Putch {
+public @interface Patch {
     String value() default "";
 }
