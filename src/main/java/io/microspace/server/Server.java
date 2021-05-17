@@ -25,17 +25,25 @@ package io.microspace.server;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
-import io.microspace.core.FreePortFinder;
-import io.microspace.core.ServerThreadNamer;
-import io.microspace.core.TransportType;
+import com.google.common.collect.ImmutableList;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import io.microspace.utils.FreePortFinder;
+import io.microspace.utils.ServerThreadNamer;
+import io.microspace.utils.TransportType;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
+import io.netty.handler.codec.http2.Http2SecurityUtil;
+import io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslProvider;
+import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.util.concurrent.Future;
 import org.slf4j.Logger;
@@ -60,6 +68,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static io.netty.handler.ssl.ApplicationProtocolConfig.Protocol.ALPN;
+import static io.netty.handler.ssl.ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT;
+import static io.netty.handler.ssl.ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE;
+import static io.netty.handler.ssl.ApplicationProtocolNames.HTTP_1_1;
+import static io.netty.handler.ssl.ApplicationProtocolNames.HTTP_2;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -71,15 +84,17 @@ public final class Server {
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final Set<ServerChannel> serverChannels = new CopyOnWriteArraySet<>();
     private final Map<InetSocketAddress, ServerPort> activePorts = new LinkedHashMap<>();
+    private final Stopwatch startupWatch = Stopwatch.createUnstarted();
     private final ServerConfig config;
     private SslContext sslContext;
     private EventLoopGroup parentGroup;
     private EventLoopGroup workerGroup;
-    private final Stopwatch startupWatch = Stopwatch.createUnstarted();
 
     Server(ServerConfig config, SslContext sslContext) {
         this.config = config;
         this.sslContext = sslContext;
+
+        setupMetrics();
     }
 
     public static ServerBuilder builder() {
@@ -95,24 +110,53 @@ public final class Server {
      * @return keystore file
      */
     private File setKeyCertFileAndPriKey(String keyPath, File defaultFilePath) {
-        return keyPath != null ? Paths.get(keyPath).toFile() : defaultFilePath;
+        return null != keyPath ? Paths.get(keyPath).toFile() : defaultFilePath;
     }
 
+    /**
+     * Sets up the version metrics.
+     */
+    void setupMetrics() {
+        final MeterRegistry meterRegistry = config().meterRegistry();
+        final List<Tag> tags = ImmutableList.of(Tag.of("version", "1.0"),
+                Tag.of("commit", "2000"),
+                Tag.of("repo.status", "final"));
+        Gauge.builder("microspace.build.info", () -> 1)
+                .tags(tags)
+                .description("A metric with a constant '1' value labeled by version and commit hash" +
+                        " from which Armeria was built.")
+                .register(meterRegistry);
+    }
+
+    private SslProvider createSslProvider() {
+        return SslProvider.isAlpnSupported(SslProvider.OPENSSL) ? SslProvider.OPENSSL : SslProvider.JDK;
+    }
+
+    private ApplicationProtocolConfig createApplicationProtocolConfig() {
+        return new ApplicationProtocolConfig(ALPN, NO_ADVERTISE, ACCEPT, HTTP_2, HTTP_1_1);
+    }
+
+    /**
+     * Start http server
+     */
     public void start() {
         startupWatch.start();
         try {
-            final boolean ssl = config().useSsl();
-            final SelfSignedCertificate ssc = new SelfSignedCertificate();
+            if (config().useSsl()) {
+                final SelfSignedCertificate ssc = new SelfSignedCertificate();
+                final ApplicationProtocolConfig config = createApplicationProtocolConfig();
 
-            if (!ssl) {
-                sslContext = null;
+                final File sslCertFile = setKeyCertFileAndPriKey(config().sslCert(), ssc.certificate());
+                final File sslPrivateKeyFile = setKeyCertFileAndPriKey(config().sslPrivateKey(), ssc.privateKey());
+                final String privateKeyPass = config().sslPrivateKeyPass();
+
+                final SupportedCipherSuiteFilter suiteFilter = SupportedCipherSuiteFilter.INSTANCE;
+                final List<String> ciphers = Http2SecurityUtil.CIPHERS;
+                final SslProvider provider = createSslProvider();
+
+                sslContext = SslContextBuilder.forServer(sslCertFile, sslPrivateKeyFile, privateKeyPass)
+                        .applicationProtocolConfig(config).ciphers(ciphers, suiteFilter).sslProvider(provider).build();
             }
-
-            final File sslCertFile = setKeyCertFileAndPriKey(config().sslCert(), ssc.certificate());
-            final File sslPrivateKeyFile = setKeyCertFileAndPriKey(config().sslPrivateKey(), ssc.privateKey());
-
-            sslContext = SslContextBuilder.forServer(sslCertFile,
-                    sslPrivateKeyFile, config().sslPrivateKeyPass()).build();
         } catch (Exception e) {
             log.error("Build SslContext exception", e);
         }
