@@ -33,6 +33,7 @@ import io.microspace.utils.FreePortFinder;
 import io.microspace.utils.ServerThreadNamer;
 import io.microspace.utils.TransportType;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelOption;
@@ -89,6 +90,7 @@ public final class Server {
     private SslContext sslContext;
     private EventLoopGroup parentGroup;
     private EventLoopGroup workerGroup;
+    private ConnectionLimitHandler connectionLimitHandler;
 
     Server(ServerConfig config, SslContext sslContext) {
         this.config = config;
@@ -124,7 +126,7 @@ public final class Server {
         Gauge.builder("microspace.build.info", () -> 1)
                 .tags(tags)
                 .description("A metric with a constant '1' value labeled by version and commit hash" +
-                        " from which Armeria was built.")
+                        " from which Microspace was built.")
                 .register(meterRegistry);
     }
 
@@ -166,8 +168,9 @@ public final class Server {
             this.parentGroup = createParentEventLoopGroup();
             this.workerGroup = createWorkerEventLoopGroup();
 
+            connectionLimitHandler = new ConnectionLimitHandler(config().maxNumConnections());
             final HttpServerInitializer initializer = new HttpServerInitializer(config, sslContext);
-            serverBootstrap.group(parentGroup, workerGroup).handler(createAcceptLimiter())
+            serverBootstrap.group(parentGroup, workerGroup).handler(connectionLimitHandler)
                     .channel(transportChannel()).childHandler(initializer);
 
             processOptions(config().channelOptions(), serverBootstrap::option);
@@ -350,6 +353,20 @@ public final class Server {
             log.error("Interrupt EventLoopGroup terminate", e);
             Thread.currentThread().interrupt();
         }
+
+        final Set<Channel> channels = connectionLimitHandler.childChannels();
+        if (!channels.isEmpty()) {
+            final AtomicInteger numChannelsToClose = new AtomicInteger(channels.size());
+            final CompletableFuture<Void> future = new CompletableFuture<>();
+            final ChannelFutureListener listener = unused -> {
+                if (numChannelsToClose.decrementAndGet() == 0) {
+                    future.complete(null);
+                }
+            };
+            for (Channel ch : channels) {
+                ch.close().addListener(listener);
+            }
+        }
     }
 
     private void logShutdownErrorIfNecessary(Future<?> future) {
@@ -368,10 +385,6 @@ public final class Server {
     @SuppressWarnings("rawtypes")
     private void processOptions(Map<ChannelOption<?>, Object> options, BiConsumer<ChannelOption, Object> biConsumer) {
         options.forEach(biConsumer);
-    }
-
-    private ConnectionLimitHandler createAcceptLimiter() {
-        return new ConnectionLimitHandler(config().maxNumConnections());
     }
 
     private EventLoopGroup createWorkerEventLoopGroup() {
