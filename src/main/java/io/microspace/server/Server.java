@@ -173,6 +173,7 @@ public final class Server {
             serverBootstrap.group(parentGroup, workerGroup).handler(connectionLimitHandler)
                     .channel(transportChannel()).childHandler(initializer);
 
+            config.banner().printBanner(config.bannerText(), config.bannerFont());
             processOptions(config().channelOptions(), serverBootstrap::option);
             processOptions(config().childChannelOptions(), serverBootstrap::option);
 
