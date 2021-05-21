@@ -23,11 +23,9 @@
  */
 package io.microspace.context.banner;
 
-import java.io.PrintStream;
-
 /**
  * @author i1619kHz
  */
 public interface Banner {
-    void printBanner(PrintStream printStream, String bannerText, String bannerFont);
+    void printBanner(String bannerText, String bannerFont);
 }

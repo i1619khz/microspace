@@ -23,23 +23,21 @@
  */
 package io.microspace.context.banner;
 
-import java.io.PrintStream;
-
 /**
  * @author i1619kHz
  */
 public abstract class AbstractBanner implements Banner {
 
-    public abstract void prePrintBannerText(PrintStream printStream, String bannerText, String bannerFont);
+    public abstract void prePrintBannerText(String bannerText, String bannerFont);
 
     public abstract String setUpPadding(Integer strapLineSize);
 
-    public abstract void printTextAndVersion(PrintStream printStream, String padding);
+    public abstract void printTextAndVersion(String padding);
 
     @Override
-    public void printBanner(PrintStream printStream, String bannerText, String bannerFont) {
-        this.prePrintBannerText(printStream, bannerText, bannerFont);
+    public void printBanner(String bannerText, String bannerFont) {
+        this.prePrintBannerText(bannerText, bannerFont);
         final String padding = setUpPadding(42);
-        this.printTextAndVersion(printStream, padding);
+        this.printTextAndVersion(padding);
     }
 }
