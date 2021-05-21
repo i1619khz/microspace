@@ -23,8 +23,6 @@
  */
 package io.microspace.server.annotation;
 
-import io.microspace.server.HttpMethod;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -35,10 +33,8 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Documented
-@Target({ElementType.METHOD})
+@Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Path {
+public @interface PathPrefix {
     String value() default "";
-
-    HttpMethod method() default HttpMethod.GET;
 }
