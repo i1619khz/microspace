@@ -25,34 +25,80 @@ package io.microspace.server;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.microspace.context.banner.Banner;
 import io.microspace.context.banner.DefaultApplicationBanner;
-import io.microspace.core.Flags;
-import io.microspace.core.UncheckedFnKit;
-import io.microspace.server.http.HttpMethod;
+import io.microspace.server.annotation.Consumes;
+import io.microspace.server.annotation.Delete;
+import io.microspace.server.annotation.ExceptionHandler;
+import io.microspace.server.annotation.ExceptionHandlerFunction;
+import io.microspace.server.annotation.Get;
+import io.microspace.server.annotation.Head;
+import io.microspace.server.annotation.MatchesHeader;
+import io.microspace.server.annotation.MatchesParam;
+import io.microspace.server.annotation.Options;
+import io.microspace.server.annotation.Order;
+import io.microspace.server.annotation.Patch;
+import io.microspace.server.annotation.Path;
+import io.microspace.server.annotation.PathPrefix;
+import io.microspace.server.annotation.Post;
+import io.microspace.server.annotation.Produces;
+import io.microspace.server.annotation.Put;
+import io.microspace.server.annotation.RequestConverter;
+import io.microspace.server.annotation.RequestConverterFunction;
+import io.microspace.server.annotation.ResponseConverter;
+import io.microspace.server.annotation.ResponseConverterFunction;
+import io.microspace.server.annotation.StatusCode;
+import io.microspace.server.annotation.Trace;
+import io.microspace.utils.Flags;
+import io.microspace.utils.UncheckedFnKit;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.epoll.EpollChannelOption;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableList.toImmutableList;
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
+import static io.microspace.server.AnnotationUtil.FindOption;
 import static io.microspace.server.SessionProtocol.HTTP;
 import static io.microspace.server.SessionProtocol.HTTPS;
 import static io.microspace.server.SessionProtocol.PROXY;
 import static java.util.Objects.requireNonNull;
+import static org.reflections8.ReflectionUtils.getAllMethods;
+import static org.reflections8.ReflectionUtils.getConstructors;
+import static org.reflections8.ReflectionUtils.getMethods;
+import static org.reflections8.ReflectionUtils.withModifier;
+import static org.reflections8.ReflectionUtils.withName;
+import static org.reflections8.ReflectionUtils.withParametersCount;
 
 /**
  * @author i1619kHz
@@ -70,26 +116,13 @@ public final class ServerBuilder {
     static final long MIN_PING_INTERVAL_MILLIS = 1000L;
     private static final long MIN_MAX_CONNECTION_AGE_MILLIS = 1_000L;
 
-    private final List<Interceptor> interceptors = new ArrayList<>();
-    private final List<Filter> filters = new ArrayList<>();
-    private final List<View> views = new ArrayList<>();
-    private final List<ViewResolver> viewResolvers = new ArrayList<>();
-    private final List<ViewAdapter> viewAdapters = new ArrayList<>();
-    private final List<TypeConverter> typeConverters = new ArrayList<>();
-    private final List<HttpService> httpServices = new ArrayList<>();
-    private final List<ArgumentBinder> argumentBinders = new ArrayList<>();
-    private final List<HandlerMapping> handlerMappings = new ArrayList<>();
-    private final List<HandlerAdapter> handlerAdapters = new ArrayList<>();
-    private final List<HandlerInterceptor> handlerInterceptors = new ArrayList<>();
-    private final List<HandlerExceptionResolver> handlerExceptionResolvers = new ArrayList<>();
-    private final Map<String, WebSocketChannel> websSocketSessions = new HashMap<>();
-    private final Map<String, Object> httpHandlerService = new HashMap<>();
+    private final Map<String, ServiceWrap> serviceWraps = new ConcurrentHashMap<>();
+    private final MeterRegistry meterRegistry = new CompositeMeterRegistry();
     private final Map<ChannelOption<?>, Object> channelOptions = new HashMap<>();
     private final Map<ChannelOption<?>, Object> childChannelOptions = new HashMap<>();
-    private HandlerExecutionChain handlerExecutionChain = new DefaultHandlerExecutionChain();
+    private final Banner banner = new DefaultApplicationBanner();
     private Executor startStopExecutor = GlobalEventExecutor.INSTANCE;
     private List<ServerPort> ports = new ArrayList<>();
-    private Banner banner = new DefaultApplicationBanner();
     private String bannerText = Flags.bannerText();
     private String bannerFont = Flags.bannerFont();
     private String sessionKey = Flags.sessionKey();
@@ -97,11 +130,6 @@ public final class ServerBuilder {
     private String templateFolder = Flags.templateFolder();
     private String serverThreadName = Flags.serverThreadName();
     private String profiles = Flags.profiles();
-    private PropertyEnvType propertyEnvType;
-
-    private String sslCert;
-    private String sslPrivateKey;
-    private String sslPrivateKeyPass;
 
     private int maxNumConnections = Flags.maxNumConnections();
     private int http2InitialConnectionWindowSize = Flags.http2InitialConnectionWindowSize();
@@ -124,33 +152,38 @@ public final class ServerBuilder {
     private boolean useEpoll = Flags.useEpoll();
     private boolean useSession = Flags.useSession();
 
+    private String sslCert;
+    private String sslPrivateKey;
+    private String sslPrivateKeyPass;
+
     public ServerBuilder http(int serverPort) {
-        checkArgument(serverPort > 0 && serverPort <= 65533, "Port number must be available");
+        checkArgument(serverPort > 0 && serverPort <= 65533, "port number must be available");
         return this.port(new ServerPort(serverPort, HTTP));
     }
 
     public ServerBuilder https(int serverPort) {
-        checkArgument(serverPort > 0 && serverPort <= 65533, "Port number must be available");
+        checkArgument(serverPort > 0 && serverPort <= 65533, "port number must be available");
         return this.port(new ServerPort(serverPort, HTTPS));
     }
 
     public ServerBuilder port(InetSocketAddress localAddress) {
-        checkNotNull(localAddress, "InetSocketAddress can't be null");
+        checkArgument(null != localAddress, "inetSocketAddress can't be null");
         return this.port(new ServerPort(requireNonNull(localAddress)));
     }
 
-    public ServerBuilder banner(Banner banner) {
-        checkNotNull(banner, "Banner can't be null");
-        this.banner = requireNonNull(banner);
+    public ServerBuilder port(ServerPort serverPort) {
+        checkArgument(null != serverPort, "serverPort can't be null");
+        this.ports.add(requireNonNull(serverPort));
         return this;
     }
 
-    /**
-     * Set the listening port number.
-     */
-    public ServerBuilder port(ServerPort port) {
-        checkNotNull(port, "ServerPort can't be null");
-        this.ports.add(requireNonNull(port));
+    public ServerBuilder port(ServerPort... serverPorts) {
+        ImmutableSet.copyOf(serverPorts).forEach(this::port);
+        return this;
+    }
+
+    public ServerBuilder port(Integer... serverPorts) {
+        ImmutableSet.copyOf(serverPorts).forEach((port -> this.port(new ServerPort(port, HTTP))));
         return this;
     }
 
@@ -258,119 +291,91 @@ public final class ServerBuilder {
     }
 
     /**
-     * Register websocket route
-     *
-     * @param path             Websocket route path
-     * @param webSocketChannel WebSocket abstract interface
-     * @return this
-     */
-    public ServerBuilder websocket(String prefix, WebSocketChannel wsChannel) {
-        checkNotNull(prefix, "prefix can't be null");
-        checkNotNull(wsChannel, "webSocketChannel can't be null");
-        this.websSocketSessions.put(prefix, wsChannel);
-        return this;
-    }
-
-    /**
      * Register get route
      *
-     * @param path           Route path
+     * @param prefix         Route path
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder get(String path, RequestHandler handler) {
-        return this.route(path, HttpMethod.GET, handler);
+    public ServerBuilder get(String prefix, HttpService service) {
+        return service(prefix, HttpMethod.GET, service);
     }
 
     /**
      * Register post route
      *
-     * @param path           Route path
+     * @param prefix         Route path
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder post(String path, RequestHandler handler) {
-        return this.route(path, HttpMethod.POST, handler);
+    public ServerBuilder post(String prefix, HttpService service) {
+        return service(prefix, HttpMethod.POST, service);
     }
 
     /**
      * Register head route
      *
-     * @param path           Route path
+     * @param prefix         Route path
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder head(String path, RequestHandler handler) {
-        return this.route(path, HttpMethod.HEAD, handler);
+    public ServerBuilder head(String prefix, HttpService service) {
+        return service(prefix, HttpMethod.HEAD, service);
     }
 
     /**
      * Register put route
      *
-     * @param path           Route path
+     * @param prefix         Route path
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder put(String path, RequestHandler handler) {
-        return this.route(path, HttpMethod.PUT, handler);
+    public ServerBuilder put(String prefix, HttpService service) {
+        return service(prefix, HttpMethod.PUT, service);
     }
 
     /**
      * Register patch route
      *
-     * @param path           Route path
+     * @param prefix         Route path
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder patch(String path, RequestHandler handler) {
-        return this.route(path, HttpMethod.PATCH, handler);
+    public ServerBuilder patch(String prefix, HttpService service) {
+        return service(prefix, HttpMethod.PATCH, service);
     }
 
     /**
      * Register delete route
      *
-     * @param path           Route path
+     * @param prefix         Route path
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder delete(String path, RequestHandler handler) {
-        return this.route(path, HttpMethod.DELETE, handler);
+    public ServerBuilder delete(String prefix, HttpService service) {
+        return service(prefix, HttpMethod.DELETE, service);
     }
 
     /**
      * Register options route
      *
-     * @param path           Route path
+     * @param prefix         Route path
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder options(String path, RequestHandler handler) {
-        return this.route(path, HttpMethod.OPTIONS, handler);
+    public ServerBuilder options(String prefix, HttpService service) {
+        return service(prefix, HttpMethod.OPTIONS, service);
     }
 
     /**
      * Register trace route
      *
-     * @param path           Route path
+     * @param prefix         Route path
      * @param requestHandler Request handler
      * @return this
      */
-    public ServerBuilder trace(String path, RequestHandler handler) {
-        return this.route(path, HttpMethod.TRACE, handler);
-    }
-
-    /**
-     * Register route
-     *
-     * @param path           Route path
-     * @param requestHandler Request handler
-     * @return this
-     */
-    private ServerBuilder route(String path, HttpMethod httpMethod, RequestHandler handler) {
-        checkNotNull(path, "Path can't be null");
-        checkNotNull(httpMethod, "Need to specify of http request method registered");
-        checkNotNull(handler, "RequestHandler object can't be null");
-        return this;
+    public ServerBuilder trace(String prefix, HttpService service) {
+        return service(prefix, HttpMethod.TRACE, service);
     }
 
     /**
@@ -380,23 +385,320 @@ public final class ServerBuilder {
      * @param errorHandler exception handler
      * @return this
      */
-    public ServerBuilder exceptionHandler(Class<? extends Throwable> throwableCls, ExceptionHandler exceptionHandler) {
+    public ServerBuilder exceptionHandler(Class<? extends Throwable> throwableCls, ExceptionHandlerFunction function) {
         checkNotNull(throwableCls, "Throwable type can't be null");
-        checkNotNull(exceptionHandler, "ExceptionHandler can't be null");
+        checkNotNull(function, "ExceptionHandler can't be null");
         return this;
     }
 
-    public ServerBuilder annotatedService(String path, Object service) {
-        checkNotNull(path, "Path can't be null");
-        checkNotNull(service, "Service can't be null");
-        this.httpHandlerService.put(path, service);
+    public ServerBuilder service(Object service) {
+        checkArgument(null != service, "service");
+        return service("/", service);
+    }
+
+    public ServerBuilder service(String prefix, HttpMethod httpMethod, HttpService service) {
+        checkArgument(!Strings.isNullOrEmpty(prefix), "path can't be null");
+        checkArgument(null != httpMethod, "need to specify of http request method registered");
+        checkArgument(null != service, "httpService object can't be null");
+
+        final ServiceWrap wrap = ServiceWrap.of(Route.builder()
+                .path(prefix, prefix)
+                .methods(httpMethod)
+                .consumes(ImmutableSet.of())
+                .produces(ImmutableSet.of())
+                .matchesParams(ImmutableList.of())
+                .matchesHeaders(ImmutableList.of())
+                .statusCode(HttpStatus.OK.code())
+                .build(), service);
+        this.serviceWraps.put(prefix, wrap);
         return this;
     }
 
-    public ServerBuilder handlerExecutionChain(HandlerExecutionChain handlerExecutionChain) {
-        checkNotNull(handlerExecutionChain, "HandlerExecutionChain can't be null");
-        this.handlerExecutionChain = handlerExecutionChain;
+    public ServerBuilder service(String prefix, Object service) {
+        checkArgument(!Strings.isNullOrEmpty(prefix), "prefix can't be null");
+        checkArgument(null != service, "object can't be null");
+
+        final List<Method> methods = requestMappingMethods(service);
+        final List<ServiceWrap> serviceWraps = methods.stream()
+                .flatMap(method -> buildService(prefix, service, method).stream())
+                .collect(toImmutableList());
+
+        serviceWraps.forEach(serviceWrap -> this.serviceWraps.put(serviceWrap.route().path(), serviceWrap));
         return this;
+    }
+
+    private List<ServiceWrap> buildService(String prefix, Object service, Method method) {
+        final Set<Annotation> methodAnnotations = httpMethodAnnotations(method);
+        if (methodAnnotations.isEmpty()) {
+            throw new IllegalArgumentException("HTTP Method specification is missing: " + method.getName());
+        }
+        final Class<?> clazz = service.getClass();
+        final Map<HttpMethod, List<String>> httpMethodPatternsMap = getHttpMethodPatternsMap(method, methodAnnotations);
+
+        final int statusCode = statusCode(method);
+        final String computedPathPrefix = computePathPrefix(clazz, prefix);
+        final Set<MediaType> consumableMediaTypes = consumableMediaTypes(method, clazz);
+        final Set<MediaType> producibleMediaTypes = producibleMediaTypes(method, clazz);
+        final List<Route> routes = httpMethodPatternsMap.entrySet().stream().flatMap(
+                pattern -> {
+                    final HttpMethod httpMethod = pattern.getKey();
+                    final List<String> pathMappings = pattern.getValue();
+                    return pathMappings.stream().map(
+                            pathMapping -> Route.builder()
+                                    .path(computedPathPrefix, pathMapping)
+                                    .methods(httpMethod)
+                                    .consumes(consumableMediaTypes)
+                                    .produces(producibleMediaTypes)
+                                    .matchesParams(
+                                            predicates(method, clazz, MatchesParam.class,
+                                                    MatchesParam::value))
+                                    .matchesHeaders(
+                                            predicates(method, clazz, MatchesHeader.class,
+                                                    MatchesHeader::value))
+                                    .statusCode(statusCode)
+                                    .build());
+                }).collect(toImmutableList());
+
+        final Set<RequestConverterFunction> requestConverterFunctions =
+                getAnnotatedInstances(method, clazz, RequestConverter.class, RequestConverterFunction.class);
+        final Set<ResponseConverterFunction> responseConverterFunctions =
+                getAnnotatedInstances(method, clazz, ResponseConverter.class, ResponseConverterFunction.class);
+        final Set<ExceptionHandlerFunction> exceptionHandlerFunctions =
+                getAnnotatedInstances(method, clazz, ExceptionHandler.class, ExceptionHandlerFunction.class);
+
+        return routes.stream().map(route -> ServiceWrap.of(route, new AnnotatedService(service, method,
+                requestConverterFunctions, responseConverterFunctions, exceptionHandlerFunctions)))
+                .collect(toImmutableList());
+    }
+
+    /**
+     * Mapping from HTTP method annotation to {@link HttpMethod}, like following.
+     * <ul>
+     *   <li>{@link Options} -> {@link HttpMethod#OPTIONS}
+     *   <li>{@link Get} -> {@link HttpMethod#GET}
+     *   <li>{@link Head} -> {@link HttpMethod#HEAD}
+     *   <li>{@link Post} -> {@link HttpMethod#POST}
+     *   <li>{@link Put} -> {@link HttpMethod#PUT}
+     *   <li>{@link Patch} -> {@link HttpMethod#PATCH}
+     *   <li>{@link Delete} -> {@link HttpMethod#DELETE}
+     *   <li>{@link Trace} -> {@link HttpMethod#TRACE}
+     * </ul>
+     */
+    private static final Map<Class<?>, HttpMethod> HTTP_METHOD_MAP =
+            ImmutableMap.<Class<?>, HttpMethod>builder()
+                    .put(Options.class, HttpMethod.OPTIONS)
+                    .put(Get.class, HttpMethod.GET)
+                    .put(Head.class, HttpMethod.HEAD)
+                    .put(Post.class, HttpMethod.POST)
+                    .put(Put.class, HttpMethod.PUT)
+                    .put(Patch.class, HttpMethod.PATCH)
+                    .put(Delete.class, HttpMethod.DELETE)
+                    .put(Trace.class, HttpMethod.TRACE)
+                    .build();
+
+    /**
+     * Returns the list of {@link Path} annotated methods.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Method> requestMappingMethods(Object object) {
+        return getAllMethods(object.getClass(), withModifier(Modifier.PUBLIC))
+                .stream()
+                // Lookup super classes just in case if the object is a proxy.
+                .filter(m -> AnnotationUtil.getAnnotations(m, FindOption.LOOKUP_SUPER_CLASSES)
+                        .stream()
+                        .map(Annotation::annotationType)
+                        .anyMatch(a -> a.isAssignableFrom(Path.class) ||
+                                HTTP_METHOD_MAP.containsKey(a)))
+                .sorted(Comparator.comparingInt(ServerBuilder::order))
+                .collect(toImmutableList());
+    }
+
+    /**
+     * Returns the value of the order of the {@link Method}. The order could be retrieved from {@link Order}
+     * annotation. 0 would be returned if there is no specified {@link Order} annotation.
+     */
+    private static int order(Method method) {
+        final Order order = AnnotationUtil.findFirst(method, Order.class);
+        return order != null ? order.value() : 0;
+    }
+
+    /**
+     * Returns {@link Set} of HTTP method annotations of a given method.
+     * The annotations are as follows.
+     *
+     * @see Options
+     * @see Get
+     * @see Head
+     * @see Post
+     * @see Put
+     * @see Patch
+     * @see Delete
+     * @see Trace
+     */
+    private static Set<Annotation> httpMethodAnnotations(Method method) {
+        return AnnotationUtil.getAnnotations(method, FindOption.LOOKUP_SUPER_CLASSES)
+                .stream()
+                .filter(annotation -> HTTP_METHOD_MAP.containsKey(annotation.annotationType()) ||
+                        annotation.annotationType().isAssignableFrom(Path.class))
+                .collect(Collectors.toSet());
+    }
+
+    private <T extends Annotation, R> ImmutableSet<R> getAnnotatedInstances(
+            AnnotatedElement method, AnnotatedElement clazz, Class<T> annotationType, Class<R> resultType) {
+        final ImmutableSet.Builder<R> builder = ImmutableSet.builder();
+        Stream.concat(AnnotationUtil.findAll(method, annotationType).stream(),
+                AnnotationUtil.findAll(clazz, annotationType).stream())
+                .forEach(annotation -> builder.add(getInstance(annotation, resultType)));
+        return builder.build();
+    }
+
+    private <T> T getInstance(Annotation annotation, Class<T> expectedType) {
+        try {
+            final Object instance = getInstance(annotation);
+            return expectedType.cast(instance);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                    "A class specified in @" + annotation.annotationType().getSimpleName() +
+                            " annotation cannot be cast to " + expectedType, e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getInstance(Annotation annotation) throws Exception {
+        Class<? extends T> clazz = (Class<? extends T>) invokeValueMethod(annotation).getClass();
+        final Constructor<? extends T> constructor =
+                Iterables.getFirst(getConstructors(clazz, withParametersCount(0)), null);
+        constructor.setAccessible(true);
+        return constructor.newInstance();
+    }
+
+    /**
+     * Returns a list of predicates which will be used to evaluate whether a request can be accepted
+     * by a service method.
+     */
+    private static <T extends Annotation> List<String> predicates(Method method, Class<?> clazz,
+                                                                  Class<T> annotationType,
+                                                                  Function<T, String> toStringPredicate) {
+        final List<T> classLevel = AnnotationUtil.findAll(clazz, annotationType);
+        final List<T> methodLevel = AnnotationUtil.findAll(method, annotationType);
+        return Streams.concat(classLevel.stream(), methodLevel.stream())
+                .map(toStringPredicate).collect(toImmutableList());
+    }
+
+    private String computePathPrefix(Class<?> clazz, String pathPrefix) {
+        ensureAbsolutePath(pathPrefix, "pathPrefix");
+        final PathPrefix pathPrefixAnnotation = AnnotationUtil.findFirst(clazz, PathPrefix.class);
+        if (null == pathPrefixAnnotation) {
+            return pathPrefix;
+        }
+
+        final String pathPrefixValue = pathPrefixAnnotation.value();
+        ensureAbsolutePath(pathPrefixValue, "pathPrefixValue");
+        if (pathPrefix.equals("/") && pathPrefixValue.equals("/")) {
+            return pathPrefix;
+        }
+        return pathPrefix + pathPrefixValue;
+    }
+
+    private void ensureAbsolutePath(String path, String paramName) {
+        checkArgument(!Strings.isNullOrEmpty(paramName), "paramName");
+        if (Strings.isNullOrEmpty(path) || path.charAt(0) != '/') {
+            throw new IllegalArgumentException(paramName + ": " + path +
+                    " (expected: an absolute path starting with '/')");
+        }
+    }
+
+    private Set<MediaType> consumableMediaTypes(Method method, Class<?> clazz) {
+        List<Consumes> consumes = AnnotationUtil.findAll(method, Consumes.class);
+        if (consumes.isEmpty()) {
+            consumes = AnnotationUtil.findAll(clazz, Consumes.class);
+        }
+        return consumes.stream()
+                .map(Consumes::value)
+                .map(MediaType::parse)
+                .collect(toImmutableSet());
+    }
+
+    private Set<MediaType> producibleMediaTypes(Method method, Class<?> clazz) {
+        List<Produces> produces = AnnotationUtil.findAll(method, Produces.class);
+        if (produces.isEmpty()) {
+            produces = AnnotationUtil.findAll(clazz, Produces.class);
+        }
+        return produces.stream()
+                .map(Produces::value)
+                .map(MediaType::parse)
+                .collect(toImmutableSet());
+    }
+
+    private int statusCode(Method method) {
+        final StatusCode statusCode = AnnotationUtil.findFirst(method, StatusCode.class);
+        return null != statusCode ? statusCode.value() : 0;
+    }
+
+    /**
+     * Returns path patterns for each {@link HttpMethod}. The path pattern might be specified by
+     * {@link Path} or HTTP method annotations such as {@link Get} and {@link Post}. Path patterns
+     * may be specified by either HTTP method annotations, or {@link Path} annotations but not both
+     * simultaneously.
+     */
+    private static Map<HttpMethod, List<String>> getHttpMethodPatternsMap(Method method,
+                                                                          Set<Annotation> methodAnnotations) {
+        final Map<HttpMethod, List<String>> httpMethodAnnotatedPatternMap =
+                getHttpMethodAnnotatedPatternMap(methodAnnotations);
+
+        if (httpMethodAnnotatedPatternMap.isEmpty()) {
+            throw new IllegalArgumentException(method.getDeclaringClass().getName() + '#' + method.getName() +
+                    " must have an HTTP method annotation.");
+        }
+
+        return httpMethodAnnotatedPatternMap.entrySet().stream().collect(
+                ImmutableMap.toImmutableMap(
+                        Map.Entry::getKey,
+                        entry -> {
+                            final List<String> httpMethodPaths = entry.getValue();
+                            if (httpMethodPaths.isEmpty()) {
+                                // Add an empty value if HTTP method annotation value is empty or not specified.
+                                httpMethodPaths.add("");
+                            }
+                            return ImmutableList.copyOf(httpMethodPaths);
+                        }));
+    }
+
+    private static Map<HttpMethod, List<String>> getHttpMethodAnnotatedPatternMap(
+            Set<Annotation> methodAnnotations) {
+        final Map<HttpMethod, List<String>> httpMethodPatternMap = new EnumMap<>(HttpMethod.class);
+        methodAnnotations.stream()
+                .filter(annotation -> HTTP_METHOD_MAP.containsKey(annotation.annotationType())
+                        || annotation.annotationType().isAssignableFrom(Path.class))
+                .forEach(annotation -> {
+                    HttpMethod httpMethod = HTTP_METHOD_MAP.get(annotation.annotationType());
+                    if (null == httpMethod) {
+                        final Path path = ((Path) annotation);
+                        httpMethod = path.method();
+                    }
+                    final String value = (String) invokeValueMethod(annotation);
+                    final List<String> patterns = httpMethodPatternMap
+                            .computeIfAbsent(httpMethod, ignored -> new ArrayList<>());
+                    if (DefaultValues.isSpecified(value)) {
+                        patterns.add(value);
+                    }
+                });
+        return httpMethodPatternMap;
+    }
+
+    /**
+     * Returns an object which is returned by {@code value()} method of the specified annotation {@code a}.
+     */
+    private static Object invokeValueMethod(Annotation a) {
+        try {
+            @SuppressWarnings("unchecked") final Method method = Iterables.getFirst(
+                    getMethods(a.annotationType(), withName("value")), null);
+            assert method != null : "No 'value' method is found from " + a;
+            return method.invoke(a);
+        } catch (Exception e) {
+            throw new IllegalStateException("An annotation @" + a.annotationType().getSimpleName() +
+                    " must have a 'value' method", e);
+        }
     }
 
     public ServerBuilder startStopExecutor(Executor startStopExecutor) {
@@ -476,16 +778,6 @@ public final class ServerBuilder {
         return this;
     }
 
-    public ServerBuilder tls(String sslCert, String sslPrivateKey, String sslPrivateKeyPass) {
-        checkNotNull(sslCert, "sslCert can't be null");
-        checkNotNull(sslPrivateKey, "sslPrivateKey can't be null");
-        checkNotNull(sslPrivateKeyPass, "sslPrivateKeyPass can't be null");
-        this.sslCert = requireNonNull(sslCert);
-        this.sslPrivateKey = requireNonNull(sslPrivateKey);
-        this.sslPrivateKeyPass = requireNonNull(sslPrivateKeyPass);
-        return this;
-    }
-
     public ServerBuilder acceptThreadCount(int acceptThreadCount) {
         checkArgument(acceptThreadCount > 0, "acceptThreadCount must > 0");
         this.acceptThreadCount = acceptThreadCount;
@@ -498,25 +790,33 @@ public final class ServerBuilder {
         return this;
     }
 
-    public ServerBuilder propertyEnvType(PropertyEnvType propertyEnvType) {
-        checkNotNull(propertyEnvType, "propertyEnvType can't be null");
-        this.propertyEnvType = propertyEnvType;
+    public <T> ServerBuilder channelOption(ChannelOption<T> option, T value) {
+        requireNonNull(option, "option");
+        checkArgument(!PROHIBITED_SOCKET_OPTIONS.contains(option),
+                "prohibited socket option: %s", option);
+
+        option.validate(value);
+        channelOptions.put(option, value);
         return this;
     }
 
-    public ServerBuilder channelOption(ChannelOption<?> channelOption, Object value) {
-        checkNotNull(channelOption, "channelOption can't be null");
-        checkNotNull(value, "value can't be null");
-        checkState(!PROHIBITED_SOCKET_OPTIONS.contains(channelOption), "prohibited socket options");
-        this.channelOptions.put(channelOption, value);
+    public <T> ServerBuilder childChannelOption(ChannelOption<T> option, T value) {
+        requireNonNull(option, "option");
+        checkArgument(!PROHIBITED_SOCKET_OPTIONS.contains(option),
+                "prohibited socket option: %s", option);
+
+        option.validate(value);
+        childChannelOptions.put(option, value);
         return this;
     }
 
-    public ServerBuilder childChannelOption(ChannelOption<?> channelOption, Object value) {
-        checkNotNull(channelOption, "channelOption can't be null");
-        checkNotNull(value, "value can't be null");
-        checkState(!PROHIBITED_SOCKET_OPTIONS.contains(channelOption), "prohibited socket options");
-        this.childChannelOptions.put(channelOption, value);
+    public ServerBuilder tls(String sslCert, String sslPrivateKey, String sslPrivateKeyPass) {
+        checkArgument(!Strings.isNullOrEmpty(sslCert), "sslCert can't be null");
+        checkArgument(!Strings.isNullOrEmpty(sslPrivateKey), "sslPrivateKey can't be null");
+        checkArgument(!Strings.isNullOrEmpty(sslPrivateKeyPass), "sslPrivateKeyPass can't be null");
+        this.sslCert = requireNonNull(sslCert);
+        this.sslPrivateKey = requireNonNull(sslPrivateKey);
+        this.sslPrivateKeyPass = requireNonNull(sslPrivateKeyPass);
         return this;
     }
 
@@ -576,9 +876,7 @@ public final class ServerBuilder {
      *
      * @return Http Server
      */
-    public Server build(Class<?> mainType, String[] args) {
-        Flags.propertyEnvType(propertyEnvType == null ? PropertyEnvType.SYS_PROPERTY : propertyEnvType);
-
+    public Server build(Class<?> bootCls, String[] args) {
         this.ports.forEach(
                 port -> checkState(port.protocols().stream().anyMatch(p -> p != PROXY),
                         "protocols: %s (expected: at least one %s or %s)",
@@ -604,13 +902,9 @@ public final class ServerBuilder {
             }
         }
 
-        return new Server(new ServerConfig(mainType, args, this.banner, this.interceptors, this.filters,
-                this.views, this.viewResolvers, this.viewAdapters,
-                this.typeConverters, this.httpServices, this.argumentBinders,
-                this.handlerMappings, this.handlerAdapters, this.handlerInterceptors,
-                this.handlerExceptionResolvers, this.websSocketSessions, this.httpHandlerService,
-                this.channelOptions, this.childChannelOptions, this.useSsl, this.useEpoll,this.startStopExecutor,
-                this.handlerExecutionChain, this.bannerText, this.bannerFont, this.sessionKey,
+        return new Server(new ServerConfig(this.serviceWraps, this.meterRegistry, bootCls, args, this.banner,
+                this.channelOptions, this.childChannelOptions, this.useSsl, this.useEpoll, this.startStopExecutor,
+                this.bannerText, this.bannerFont, this.sessionKey,
                 this.viewSuffix, this.templateFolder, this.serverThreadName, this.profiles, this.useSession,
                 this.ports, this.maxNumConnections, this.http2InitialConnectionWindowSize,
                 this.http2InitialStreamWindowSize, this.http2MaxFrameSize, this.http1MaxInitialLineLength,

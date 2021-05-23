@@ -23,6 +23,7 @@
  */
 package io.microspace.server;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import io.microspace.context.banner.Banner;
 import io.netty.channel.ChannelOption;
 
@@ -34,25 +35,12 @@ import java.util.concurrent.Executor;
  * @author i1619kHz
  */
 public final class ServerConfig {
-    private final List<Interceptor> interceptors;
-    private final List<Filter> filters;
-    private final List<View> views;
-    private final List<ViewResolver> viewResolvers;
-    private final List<ViewAdapter> viewAdapters;
-    private final List<TypeConverter> typeConverters;
-    private final List<HttpService> httpServices;
-    private final List<ArgumentBinder> argumentBinders;
-    private final List<HandlerMapping> handlerMappings;
-    private final List<HandlerAdapter> handlerAdapters;
-    private final List<HandlerInterceptor> handlerInterceptors;
-    private final List<HandlerExceptionResolver> handlerExceptionResolvers;
-    private final Map<String, WebSocketChannel> websSocketSessions;
-    private final Map<String, Object> httpHandlerService;
+    private final MeterRegistry meterRegistry;
     private final Map<ChannelOption<?>, Object> channelOptions;
     private final Map<ChannelOption<?>, Object> childChannelOptions;
-    private final HandlerExecutionChain handlerExecutionChain;
     private final Executor startStopExecutor;
     private final Banner banner;
+    private final Map<String, ServiceWrap> serviceWraps;
 
     private final boolean useSsl;
     private final boolean useEpoll;
@@ -89,48 +77,31 @@ public final class ServerConfig {
     private final String sslPrivateKey;
     private final String sslPrivateKeyPass;
 
-    private final Class<?> mainType;
-    private final String[] mainArgs;
+    private final Class<?> bootCls;
+    private final String[] args;
 
-    public ServerConfig(Class<?> mainType, String[] mainArgs, Banner banner, List<Interceptor> interceptors, List<Filter> filters, List<View> views,
-                        List<ViewResolver> viewResolvers, List<ViewAdapter> viewAdapters,
-                        List<TypeConverter> typeConverters, List<HttpService> httpServices,
-                        List<ArgumentBinder> argumentBinders, List<HandlerMapping> handlerMappings,
-                        List<HandlerAdapter> handlerAdapters, List<HandlerInterceptor> handlerInterceptors,
-                        List<HandlerExceptionResolver> handlerExceptionResolvers,
-                        Map<String, WebSocketChannel> websSocketSessions, Map<String, Object> httpHandlerService,
-                        Map<ChannelOption<?>, Object> channelOptions, Map<ChannelOption<?>, Object> childChannelOptions,
-                        boolean useSsl, boolean useEpoll, Executor startStopExecutor, HandlerExecutionChain handlerExecutionChain, String bannerText,
-                        String bannerFont, String sessionKey, String viewSuffix, String templateFolder,
-                        String serverThreadName, String profiles, boolean useSession, List<ServerPort> ports,
-                        int maxNumConnections, int http2InitialConnectionWindowSize, int http2InitialStreamWindowSize,
-                        int http2MaxFrameSize, int http1MaxInitialLineLength, int http1MaxHeaderSize,
-                        int http1MaxChunkSize, long idleTimeoutMillis, long pingIntervalMillis,
-                        long maxConnectionAgeMillis, long http2MaxHeaderListSize, long http2MaxStreamsPerConnection,
-                        int acceptThreadCount, int ioThreadCount, int serverRestartCount, String sslCert, String sslPrivateKey, String sslPrivateKeyPass) {
-        this.mainType = mainType;
-        this.mainArgs = mainArgs;
+    ServerConfig(Map<String, ServiceWrap> serviceWraps, MeterRegistry meterRegistry,
+                 Class<?> bootCls, String[] args, Banner banner,
+                 Map<ChannelOption<?>, Object> channelOptions, Map<ChannelOption<?>, Object> childChannelOptions,
+                 boolean useSsl, boolean useEpoll, Executor startStopExecutor, String bannerText,
+                 String bannerFont, String sessionKey, String viewSuffix, String templateFolder,
+                 String serverThreadName, String profiles, boolean useSession, List<ServerPort> ports,
+                 int maxNumConnections, int http2InitialConnectionWindowSize, int http2InitialStreamWindowSize,
+                 int http2MaxFrameSize, int http1MaxInitialLineLength, int http1MaxHeaderSize,
+                 int http1MaxChunkSize, long idleTimeoutMillis, long pingIntervalMillis,
+                 long maxConnectionAgeMillis, long http2MaxHeaderListSize, long http2MaxStreamsPerConnection,
+                 int acceptThreadCount, int ioThreadCount, int serverRestartCount, String sslCert, String sslPrivateKey,
+                 String sslPrivateKeyPass) {
+        this.serviceWraps = serviceWraps;
+        this.meterRegistry = meterRegistry;
+        this.bootCls = bootCls;
+        this.args = args;
         this.banner = banner;
-        this.interceptors = interceptors;
-        this.filters = filters;
-        this.views = views;
-        this.viewResolvers = viewResolvers;
-        this.viewAdapters = viewAdapters;
-        this.typeConverters = typeConverters;
-        this.httpServices = httpServices;
-        this.argumentBinders = argumentBinders;
-        this.handlerMappings = handlerMappings;
-        this.handlerAdapters = handlerAdapters;
-        this.handlerInterceptors = handlerInterceptors;
-        this.handlerExceptionResolvers = handlerExceptionResolvers;
-        this.websSocketSessions = websSocketSessions;
-        this.httpHandlerService = httpHandlerService;
         this.channelOptions = channelOptions;
         this.childChannelOptions = childChannelOptions;
         this.useSsl = useSsl;
         this.useEpoll = useEpoll;
         this.startStopExecutor = startStopExecutor;
-        this.handlerExecutionChain = handlerExecutionChain;
         this.bannerText = bannerText;
         this.bannerFont = bannerFont;
         this.sessionKey = sessionKey;
@@ -160,68 +131,12 @@ public final class ServerConfig {
         this.sslPrivateKeyPass = sslPrivateKeyPass;
     }
 
-    public Class<?> mainType() {
-        return mainType;
+    public Class<?> bootCls() {
+        return bootCls;
     }
 
-    public String[] mainArgs() {
-        return mainArgs;
-    }
-
-    public List<Interceptor> interceptors() {
-        return interceptors;
-    }
-
-    public List<Filter> filters() {
-        return filters;
-    }
-
-    public List<View> views() {
-        return views;
-    }
-
-    public List<ViewResolver> viewResolvers() {
-        return viewResolvers;
-    }
-
-    public List<ViewAdapter> viewAdapters() {
-        return viewAdapters;
-    }
-
-    public List<TypeConverter> typeConverters() {
-        return typeConverters;
-    }
-
-    public List<HttpService> httpServices() {
-        return httpServices;
-    }
-
-    public List<ArgumentBinder> argumentBinders() {
-        return argumentBinders;
-    }
-
-    public List<HandlerMapping> handlerMappings() {
-        return handlerMappings;
-    }
-
-    public List<HandlerAdapter> handlerAdapters() {
-        return handlerAdapters;
-    }
-
-    public List<HandlerInterceptor> handlerInterceptors() {
-        return handlerInterceptors;
-    }
-
-    public List<HandlerExceptionResolver> handlerExceptionResolvers() {
-        return handlerExceptionResolvers;
-    }
-
-    public Map<String, WebSocketChannel> websSocketSessions() {
-        return websSocketSessions;
-    }
-
-    public Map<String, Object> httpHandlerService() {
-        return httpHandlerService;
+    public String[] args() {
+        return args;
     }
 
     public Map<ChannelOption<?>, Object> channelOptions() {
@@ -238,10 +153,6 @@ public final class ServerConfig {
 
     public boolean useEpoll() {
         return useEpoll;
-    }
-
-    public HandlerExecutionChain handlerExecutionChain() {
-        return handlerExecutionChain;
     }
 
     public String bannerText() {
@@ -358,5 +269,13 @@ public final class ServerConfig {
 
     public Executor startStopExecutor() {
         return startStopExecutor;
+    }
+
+    public MeterRegistry meterRegistry() {
+        return meterRegistry;
+    }
+
+    public Map<String, ServiceWrap> serviceWraps() {
+        return serviceWraps;
     }
 }
