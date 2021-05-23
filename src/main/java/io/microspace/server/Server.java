@@ -299,8 +299,8 @@ public final class Server {
                     activePorts.put(localAddress, actualPort);
                 }
 
-                if (config().mainType() != null) {
-                    String applicationName = config().mainType().getName();
+                if (config().bootCls() != null) {
+                    String applicationName = config().bootCls().getName();
                     if (isLocalPort(actualPort)) {
                         port.protocols().forEach(p -> log.info(
                                 "Binding {} Serving {} at {} - {}://127.0.0.1:{}/", applicationName,
