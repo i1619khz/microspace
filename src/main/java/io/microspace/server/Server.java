@@ -29,9 +29,9 @@ import com.google.common.collect.ImmutableList;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
-import io.microspace.utils.FreePortFinder;
-import io.microspace.utils.ServerThreadNamer;
-import io.microspace.utils.TransportType;
+import io.microspace.internal.FreePortFinder;
+import io.microspace.internal.ServerThreadNamer;
+import io.microspace.internal.TransportType;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -118,7 +118,7 @@ public final class Server {
     /**
      * Sets up the version metrics.
      */
-    void setupMetrics() {
+    private void setupMetrics() {
         final MeterRegistry meterRegistry = config().meterRegistry();
         final List<Tag> tags = ImmutableList.of(Tag.of("version", "1.0"),
                 Tag.of("commit", "2000"),

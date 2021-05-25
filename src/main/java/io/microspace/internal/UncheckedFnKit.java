@@ -21,36 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.utils;
+package io.microspace.internal;
 
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.LongAdder;
-
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.function.Function;
 
 /**
  * @author i1619kHz
  */
-public class ServerThreadNamer implements ThreadFactory {
-    private final String prefix;
-    private final LongAdder threadNumber = new LongAdder();
+public class UncheckedFnKit {
 
-    public ServerThreadNamer(String prefix) {
-        this.threadNumber.add(1);
-        this.prefix = prefix;
+    @FunctionalInterface
+    public interface FunctionWithExceptions<T, R, E extends Throwable> {
+        R apply(T t) throws E;
     }
 
-    /**
-     * Constructs a new {@code Thread}.  Implementations may also initialize
-     * priority, name, daemon status, {@code ThreadGroup}, etc.
-     *
-     * @param runnable a runnable to be executed by new thread instance
-     * @return constructed thread, or {@code null} if the request to
-     * create a thread is rejected
-     */
-    @Override
-    public Thread newThread(Runnable runnable) {
-        checkNotNull(runnable, "runnable");
-        return new Thread(runnable, prefix + "thread-" + threadNumber.intValue());
+    public static <T, R> Function<T, R> function(FunctionWithExceptions<T, R, Throwable> function) {
+        return t -> {
+            try {
+                return function.apply(t);
+            } catch (Throwable throwable) {
+                throw new RuntimeException(throwable);
+            }
+        };
     }
 }

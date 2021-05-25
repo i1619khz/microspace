@@ -34,6 +34,10 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.microspace.context.banner.Banner;
 import io.microspace.context.banner.DefaultApplicationBanner;
+import io.microspace.internal.AnnotationUtil;
+import io.microspace.internal.DefaultValues;
+import io.microspace.internal.Flags;
+import io.microspace.internal.UncheckedFnKit;
 import io.microspace.server.annotation.Consumes;
 import io.microspace.server.annotation.Delete;
 import io.microspace.server.annotation.ExceptionHandler;
@@ -56,8 +60,6 @@ import io.microspace.server.annotation.ResponseConverter;
 import io.microspace.server.annotation.ResponseConverterFunction;
 import io.microspace.server.annotation.StatusCode;
 import io.microspace.server.annotation.Trace;
-import io.microspace.utils.Flags;
-import io.microspace.utils.UncheckedFnKit;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.epoll.EpollChannelOption;
 import io.netty.util.concurrent.GlobalEventExecutor;
@@ -88,7 +90,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
-import static io.microspace.server.AnnotationUtil.FindOption;
+import static io.microspace.internal.AnnotationUtil.FindOption;
 import static io.microspace.server.SessionProtocol.HTTP;
 import static io.microspace.server.SessionProtocol.HTTPS;
 import static io.microspace.server.SessionProtocol.PROXY;
@@ -298,7 +300,7 @@ public final class ServerBuilder {
      * @return this
      */
     public ServerBuilder get(String prefix, HttpService service) {
-        return service(prefix, HttpMethod.GET, service);
+        return service(prefix, service, HttpMethod.GET);
     }
 
     /**
@@ -309,7 +311,7 @@ public final class ServerBuilder {
      * @return this
      */
     public ServerBuilder post(String prefix, HttpService service) {
-        return service(prefix, HttpMethod.POST, service);
+        return service(prefix, service, HttpMethod.POST);
     }
 
     /**
@@ -320,7 +322,7 @@ public final class ServerBuilder {
      * @return this
      */
     public ServerBuilder head(String prefix, HttpService service) {
-        return service(prefix, HttpMethod.HEAD, service);
+        return service(prefix, service, HttpMethod.HEAD);
     }
 
     /**
@@ -331,7 +333,7 @@ public final class ServerBuilder {
      * @return this
      */
     public ServerBuilder put(String prefix, HttpService service) {
-        return service(prefix, HttpMethod.PUT, service);
+        return service(prefix, service, HttpMethod.PUT);
     }
 
     /**
@@ -342,7 +344,7 @@ public final class ServerBuilder {
      * @return this
      */
     public ServerBuilder patch(String prefix, HttpService service) {
-        return service(prefix, HttpMethod.PATCH, service);
+        return service(prefix, service, HttpMethod.PATCH);
     }
 
     /**
@@ -353,7 +355,7 @@ public final class ServerBuilder {
      * @return this
      */
     public ServerBuilder delete(String prefix, HttpService service) {
-        return service(prefix, HttpMethod.DELETE, service);
+        return service(prefix, service, HttpMethod.DELETE);
     }
 
     /**
@@ -364,7 +366,7 @@ public final class ServerBuilder {
      * @return this
      */
     public ServerBuilder options(String prefix, HttpService service) {
-        return service(prefix, HttpMethod.OPTIONS, service);
+        return service(prefix, service, HttpMethod.OPTIONS);
     }
 
     /**
@@ -375,7 +377,7 @@ public final class ServerBuilder {
      * @return this
      */
     public ServerBuilder trace(String prefix, HttpService service) {
-        return service(prefix, HttpMethod.TRACE, service);
+        return service(prefix, service, HttpMethod.TRACE);
     }
 
     /**
@@ -391,30 +393,42 @@ public final class ServerBuilder {
         return this;
     }
 
-    public ServerBuilder service(Object service) {
-        checkArgument(null != service, "service");
-        return service("/", service);
+    public ServerBuilder service(String prefix, HttpService service) {
+        return service(prefix, service, HttpMethod.knownMethods());
     }
 
-    public ServerBuilder service(String prefix, HttpMethod httpMethod, HttpService service) {
-        checkArgument(!Strings.isNullOrEmpty(prefix), "path can't be null");
-        checkArgument(null != httpMethod, "need to specify of http request method registered");
-        checkArgument(null != service, "httpService object can't be null");
+    public ServerBuilder service(String prefix, HttpService service, HttpMethod... httpMethods) {
+        return service(prefix, service, ImmutableSet.copyOf(requireNonNull(httpMethods, "httpMethods")));
+    }
 
-        final ServiceWrap wrap = ServiceWrap.of(Route.builder()
+    public ServerBuilder service(String prefix, HttpService service, Iterable<HttpMethod> httpMethods) {
+        checkArgument(!Strings.isNullOrEmpty(prefix), "path can't be null");
+        checkArgument(null != httpMethods, "need to specify of http request method registered");
+        checkArgument(null != service, "httpService object can't be null");
+        this.serviceWraps.put(prefix, ServiceWrap.of(Route.builder()
                 .path(prefix, prefix)
-                .methods(httpMethod)
+                .methods(httpMethods)
                 .consumes(ImmutableSet.of())
                 .produces(ImmutableSet.of())
                 .matchesParams(ImmutableList.of())
                 .matchesHeaders(ImmutableList.of())
-                .statusCode(HttpStatus.OK.code())
-                .build(), service);
-        this.serviceWraps.put(prefix, wrap);
+                .statusCode(HttpStatus.OK)
+                .build(), service));
         return this;
     }
 
-    public ServerBuilder service(String prefix, Object service) {
+    public ServerBuilder serviceUnder(String prefix, HttpService service) {
+        checkArgument(!Strings.isNullOrEmpty(prefix), "prefix");
+        checkArgument(null != service, "service");
+        return get(prefix, service);
+    }
+
+    public ServerBuilder annotatedService(Object service) {
+        checkArgument(null != service, "service");
+        return annotatedService("/", service);
+    }
+
+    public ServerBuilder annotatedService(String prefix, Object service) {
         checkArgument(!Strings.isNullOrEmpty(prefix), "prefix can't be null");
         checkArgument(null != service, "object can't be null");
 
@@ -423,7 +437,7 @@ public final class ServerBuilder {
                 .flatMap(method -> buildService(prefix, service, method).stream())
                 .collect(toImmutableList());
 
-        serviceWraps.forEach(serviceWrap -> this.serviceWraps.put(serviceWrap.route().path(), serviceWrap));
+        serviceWraps.forEach(serviceWrap -> this.serviceWraps.put(serviceWrap.route().fullPath(), serviceWrap));
         return this;
     }
 
@@ -435,7 +449,7 @@ public final class ServerBuilder {
         final Class<?> clazz = service.getClass();
         final Map<HttpMethod, List<String>> httpMethodPatternsMap = getHttpMethodPatternsMap(method, methodAnnotations);
 
-        final int statusCode = statusCode(method);
+        final HttpStatus statusCode = statusCode(method);
         final String computedPathPrefix = computePathPrefix(clazz, prefix);
         final Set<MediaType> consumableMediaTypes = consumableMediaTypes(method, clazz);
         final Set<MediaType> producibleMediaTypes = producibleMediaTypes(method, clazz);
@@ -585,6 +599,20 @@ public final class ServerBuilder {
                 .map(toStringPredicate).collect(toImmutableList());
     }
 
+    private HttpStatus statusCode(Method method) {
+        final StatusCode statusCodeAnnotation = AnnotationUtil.findFirst(method, StatusCode.class);
+        if (statusCodeAnnotation == null) {
+            // Set a default HTTP status code for a response depending on the return type of the method.
+            final Class<?> returnType = method.getReturnType();
+            return returnType == Void.class ||
+                    returnType == void.class ? HttpStatus.NO_CONTENT : HttpStatus.OK;
+        }
+        final int statusCode = statusCodeAnnotation.value();
+        checkArgument(statusCode >= 0,
+                "invalid HTTP status code: %s (expected: >= 0)", statusCode);
+        return HttpStatus.valueOf(statusCode);
+    }
+
     private String computePathPrefix(Class<?> clazz, String pathPrefix) {
         ensureAbsolutePath(pathPrefix, "pathPrefix");
         final PathPrefix pathPrefixAnnotation = AnnotationUtil.findFirst(clazz, PathPrefix.class);
@@ -628,11 +656,6 @@ public final class ServerBuilder {
                 .map(Produces::value)
                 .map(MediaType::parse)
                 .collect(toImmutableSet());
-    }
-
-    private int statusCode(Method method) {
-        final StatusCode statusCode = AnnotationUtil.findFirst(method, StatusCode.class);
-        return null != statusCode ? statusCode.value() : 0;
     }
 
     /**
@@ -686,19 +709,23 @@ public final class ServerBuilder {
         return httpMethodPatternMap;
     }
 
-    /**
-     * Returns an object which is returned by {@code value()} method of the specified annotation {@code a}.
-     */
-    private static Object invokeValueMethod(Annotation a) {
+    private static Object invokeAnnotationMethod(Annotation a, String invokeName) {
         try {
             @SuppressWarnings("unchecked") final Method method = Iterables.getFirst(
-                    getMethods(a.annotationType(), withName("value")), null);
+                    getMethods(a.annotationType(), withName(invokeName)), null);
             assert method != null : "No 'value' method is found from " + a;
             return method.invoke(a);
         } catch (Exception e) {
             throw new IllegalStateException("An annotation @" + a.annotationType().getSimpleName() +
                     " must have a 'value' method", e);
         }
+    }
+
+    /**
+     * Returns an object which is returned by {@code value()} method of the specified annotation {@code a}.
+     */
+    private static Object invokeValueMethod(Annotation a) {
+        return invokeAnnotationMethod(a, "value");
     }
 
     public ServerBuilder startStopExecutor(Executor startStopExecutor) {

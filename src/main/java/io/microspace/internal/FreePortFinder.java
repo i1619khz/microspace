@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.utils;
+package io.microspace.internal;
 
 import java.io.IOException;
 import java.net.DatagramSocket;

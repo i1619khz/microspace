@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.utils;
+package io.microspace.internal;
 
 import io.microspace.context.banner.BannerFont;
 import io.microspace.server.ServerPort;

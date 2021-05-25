@@ -21,27 +21,43 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.utils;
+package io.microspace.internal;
 
-import java.util.function.Function;
+import javax.annotation.Nullable;
 
 /**
- * @author i1619kHz
+ * Holds the default values used in annotation attributes.
  */
-public class UncheckedFnKit {
+public final class DefaultValues {
 
-    @FunctionalInterface
-    public interface FunctionWithExceptions<T, R, E extends Throwable> {
-        R apply(T t) throws E;
+    /**
+     * A string constant defining unspecified values from users.
+     *
+     * @see Default#value()
+     */
+    public static final String UNSPECIFIED = "\n\t\t\n\t\t\n\000\001\002\n\t\t\t\t\n";
+
+    /**
+     * Returns whether the specified value is specified by a user.
+     */
+    public static boolean isSpecified(@Nullable String value) {
+        return !UNSPECIFIED.equals(value);
     }
 
-    public static <T, R> Function<T, R> function(FunctionWithExceptions<T, R, Throwable> function) {
-        return t -> {
-            try {
-                return function.apply(t);
-            } catch (Throwable throwable) {
-                throw new RuntimeException(throwable);
-            }
-        };
+    /**
+     * Returns whether the specified value is not specified by a user.
+     */
+    public static boolean isUnspecified(@Nullable String value) {
+        return UNSPECIFIED.equals(value);
     }
+
+    /**
+     * Returns the specified value if it is specified by a user.
+     */
+    @Nullable
+    public static String getSpecifiedValue(@Nullable String value) {
+        return isSpecified(value) ? value : null;
+    }
+
+    private DefaultValues() {}
 }
