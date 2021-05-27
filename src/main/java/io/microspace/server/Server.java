@@ -285,7 +285,7 @@ public final class Server {
         public void operationComplete(ChannelFuture f) {
             final ServerChannel ch = (ServerChannel) f.channel();
             assert ch.eventLoop().inEventLoop();
-            serverChannels.add(ch);
+            serverChannels().add(ch);
 
             if (f.isSuccess()) {
                 final InetSocketAddress localAddress = (InetSocketAddress) ch.localAddress();
@@ -318,6 +318,9 @@ public final class Server {
     public void stop() {
         config().startStopExecutor().execute(() -> {
             final Stopwatch stopwatch = Stopwatch.createStarted();
+            synchronized (activePorts) {
+                activePorts.clear();
+            }
             if (isRunning() && workerGroup != null) {
                 if (isRunning.compareAndSet(true, false)) {
                     stopServerAndGroup();
