@@ -78,6 +78,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -115,7 +116,7 @@ public final class ServerBuilder {
             ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, ChannelOption.WRITE_BUFFER_LOW_WATER_MARK,
             EpollChannelOption.EPOLL_MODE);
 
-    static final long MIN_PING_INTERVAL_MILLIS = 1000L;
+    private static final long MIN_PING_INTERVAL_MILLIS = 1000L;
     private static final long MIN_MAX_CONNECTION_AGE_MILLIS = 1_000L;
 
     private final Map<String, ServiceWrap> serviceWraps = new ConcurrentHashMap<>();
@@ -405,7 +406,7 @@ public final class ServerBuilder {
         checkArgument(!Strings.isNullOrEmpty(prefix), "path can't be null");
         checkArgument(null != httpMethods, "need to specify of http request method registered");
         checkArgument(null != service, "httpService object can't be null");
-        this.serviceWraps.put(prefix, ServiceWrap.of(Route.builder()
+        serviceWraps.put(prefix, ServiceWrap.of(Route.builder()
                 .path(prefix, prefix)
                 .methods(httpMethods)
                 .consumes(ImmutableSet.of())
@@ -521,8 +522,8 @@ public final class ServerBuilder {
                 .filter(m -> AnnotationUtil.getAnnotations(m, FindOption.LOOKUP_SUPER_CLASSES)
                         .stream()
                         .map(Annotation::annotationType)
-                        .anyMatch(a -> a.isAssignableFrom(Path.class) ||
-                                HTTP_METHOD_MAP.containsKey(a)))
+                        .anyMatch(annotationType -> annotationType.isAssignableFrom(Path.class) ||
+                                HTTP_METHOD_MAP.containsKey(annotationType)))
                 .sorted(Comparator.comparingInt(ServerBuilder::order))
                 .collect(toImmutableList());
     }
@@ -549,7 +550,7 @@ public final class ServerBuilder {
      * @see Delete
      * @see Trace
      */
-    private static Set<Annotation> httpMethodAnnotations(Method method) {
+    private Set<Annotation> httpMethodAnnotations(Method method) {
         return AnnotationUtil.getAnnotations(method, FindOption.LOOKUP_SUPER_CLASSES)
                 .stream()
                 .filter(annotation -> HTTP_METHOD_MAP.containsKey(annotation.annotationType()) ||
@@ -664,8 +665,8 @@ public final class ServerBuilder {
      * may be specified by either HTTP method annotations, or {@link Path} annotations but not both
      * simultaneously.
      */
-    private static Map<HttpMethod, List<String>> getHttpMethodPatternsMap(Method method,
-                                                                          Set<Annotation> methodAnnotations) {
+    private Map<HttpMethod, List<String>> getHttpMethodPatternsMap(Method method,
+                                                                   Set<Annotation> methodAnnotations) {
         final Map<HttpMethod, List<String>> httpMethodAnnotatedPatternMap =
                 getHttpMethodAnnotatedPatternMap(methodAnnotations);
 
@@ -687,7 +688,7 @@ public final class ServerBuilder {
                         }));
     }
 
-    private static Map<HttpMethod, List<String>> getHttpMethodAnnotatedPatternMap(
+    private Map<HttpMethod, List<String>> getHttpMethodAnnotatedPatternMap(
             Set<Annotation> methodAnnotations) {
         final Map<HttpMethod, List<String>> httpMethodPatternMap = new EnumMap<>(HttpMethod.class);
         methodAnnotations.stream()
@@ -852,18 +853,18 @@ public final class ServerBuilder {
     }
 
     public Server build(String[] args) {
-        Class<?> caller = findMainCaller();
-        return build(caller, args);
+        return build(findMainCaller(), args);
     }
 
     private Class<?> findMainCaller() {
-        return Arrays.stream(Thread.currentThread()
+        final Thread currentThread = Thread.currentThread();
+        final Optional<? extends Class<?>> classOptional = Arrays.stream(currentThread
                 .getStackTrace())
                 .filter(st -> "main".equals(st.getMethodName()))
                 .findFirst()
                 .map(StackTraceElement::getClassName)
-                .map(UncheckedFnKit.function(Class::forName))
-                .orElse(null);
+                .map(UncheckedFnKit.function(Class::forName));
+        return classOptional.orElse(null);
     }
 
     /**
