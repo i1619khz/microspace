@@ -138,10 +138,14 @@ public final class Server {
         return new ApplicationProtocolConfig(ALPN, NO_ADVERTISE, ACCEPT, HTTP_2, HTTP_1_1);
     }
 
+    public void start() {
+        start(false);
+    }
+
     /**
      * Start http server
      */
-    public void start() {
+    public void start(boolean registerShutdownHook) {
         startupWatch.start();
         try {
             if (config().useSsl()) {
@@ -199,6 +203,15 @@ public final class Server {
                             log.info("Serving startup time {}{}", startupWatch.elapsed().toMillis(), "ms");
                         }
                     }));
+        }
+
+        if (registerShutdownHook) {
+            final Runtime runtime = Runtime.getRuntime();
+            runtime.addShutdownHook(new Thread(this::stop));
+
+            if (log.isDebugEnabled()) {
+                log.debug("The shutdown hook has been registered, the service will call the stop method when the system is shut down");
+            }
         }
     }
 
@@ -296,7 +309,7 @@ public final class Server {
 
                 synchronized (activePorts) {
                     // Update the map of active ports.
-                    activePorts.put(localAddress, actualPort);
+                    activePorts().put(localAddress, actualPort);
                 }
 
                 if (config().bootCls() != null) {
@@ -319,7 +332,7 @@ public final class Server {
         config().startStopExecutor().execute(() -> {
             final Stopwatch stopwatch = Stopwatch.createStarted();
             synchronized (activePorts) {
-                activePorts.clear();
+                activePorts().clear();
             }
             if (isRunning() && workerGroup != null) {
                 if (isRunning.compareAndSet(true, false)) {
