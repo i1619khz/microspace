@@ -55,7 +55,6 @@ import java.net.BindException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -184,15 +183,15 @@ public final class Server {
             // Initialize the server sockets asynchronously.
             final CompletableFuture<Void> future = new CompletableFuture<>();
             final CompletableFuture<Void> startupWatchFuture = new CompletableFuture<>();
-            List<ServerPort> ports = config().ports();
+            final List<ServerPort> ports = config().ports();
             final Iterator<ServerPort> it = ports.iterator();
             assert it.hasNext();
 
             final ServerPort primary = it.next();
             final AtomicInteger attempts = new AtomicInteger(0);
             config().startStopExecutor().execute(() -> bindServerToHost(serverBootstrap, primary, attempts)
-                    .addListener(new ServerPortStartListener(primary))
                     .addListener(new BindNextPortListener(future, it, serverBootstrap))
+                    .addListener(new ServerPortStartListener(primary))
                     .addListener((ChannelFutureListener) f -> {
                         if (!f.isSuccess()) {
                             startupWatchFuture.completeExceptionally(f.cause());
@@ -348,8 +347,8 @@ public final class Server {
     }
 
     private void stopServerAndGroup() {
-        final long quietPeriod = Duration.ofSeconds(2).toMillis();
-        final long timeout = Duration.ofSeconds(15).toMillis();
+        final long quietPeriod = config().stopQuietPeriod().toMillis();
+        final long timeout = config().stopTimeout().toMillis();
         if (parentGroup != null) {
             parentGroup.shutdownGracefully(quietPeriod, timeout, TimeUnit.MILLISECONDS)
                     .addListener(this::logShutdownErrorIfNecessary);

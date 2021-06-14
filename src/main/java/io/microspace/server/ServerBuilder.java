@@ -70,6 +70,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -154,6 +155,9 @@ public final class ServerBuilder {
     private boolean useSsl = Flags.useSsl();
     private boolean useEpoll = Flags.useEpoll();
     private boolean useSession = Flags.useSession();
+
+    private Duration stopQuietPeriod = Flags.stopQuietPeriod();
+    private Duration stopTimeout = Flags.stopTimeout();
 
     private String sslCert;
     private String sslPrivateKey;
@@ -729,6 +733,16 @@ public final class ServerBuilder {
         return invokeAnnotationMethod(a, "value");
     }
 
+    public ServerBuilder stopQuietPeriod(Duration stopQuietPeriod) {
+        this.stopQuietPeriod = stopQuietPeriod;
+        return this;
+    }
+
+    public ServerBuilder stopTimeout(Duration stopTimeout) {
+        this.stopTimeout = stopTimeout;
+        return this;
+    }
+
     public ServerBuilder startStopExecutor(Executor startStopExecutor) {
         this.startStopExecutor = requireNonNull(startStopExecutor, "startStopExecutor");
         return this;
@@ -939,6 +953,6 @@ public final class ServerBuilder {
                 this.http1MaxHeaderSize, this.http1MaxChunkSize, this.idleTimeoutMillis, this.pingIntervalMillis,
                 this.maxConnectionAgeMillis, this.http2MaxHeaderListSize, this.http2MaxStreamsPerConnection,
                 this.acceptThreadCount, this.ioThreadCount, this.serverRestartCount, this.sslCert, this.sslPrivateKey,
-                this.sslPrivateKeyPass), null);
+                this.sslPrivateKeyPass, stopQuietPeriod, stopTimeout), null);
     }
 }

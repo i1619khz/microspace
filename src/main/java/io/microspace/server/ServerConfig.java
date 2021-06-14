@@ -27,6 +27,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.microspace.context.banner.Banner;
 import io.netty.channel.ChannelOption;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -73,6 +74,9 @@ public final class ServerConfig {
     private final long http2MaxHeaderListSize;
     private final long http2MaxStreamsPerConnection;
 
+    private final Duration stopQuietPeriod;
+    private final Duration stopTimeout;
+
     private final String sslCert;
     private final String sslPrivateKey;
     private final String sslPrivateKeyPass;
@@ -91,7 +95,7 @@ public final class ServerConfig {
                  int http1MaxChunkSize, long idleTimeoutMillis, long pingIntervalMillis,
                  long maxConnectionAgeMillis, long http2MaxHeaderListSize, long http2MaxStreamsPerConnection,
                  int acceptThreadCount, int ioThreadCount, int serverRestartCount, String sslCert, String sslPrivateKey,
-                 String sslPrivateKeyPass) {
+                 String sslPrivateKeyPass, Duration stopQuietPeriod, Duration stopTimeout) {
         this.serviceWraps = serviceWraps;
         this.meterRegistry = meterRegistry;
         this.bootCls = bootCls;
@@ -129,6 +133,8 @@ public final class ServerConfig {
         this.sslCert = sslCert;
         this.sslPrivateKey = sslPrivateKey;
         this.sslPrivateKeyPass = sslPrivateKeyPass;
+        this.stopQuietPeriod = stopQuietPeriod;
+        this.stopTimeout = stopTimeout;
     }
 
     public Class<?> bootCls() {
@@ -277,5 +283,13 @@ public final class ServerConfig {
 
     public Map<String, ServiceWrap> serviceWraps() {
         return serviceWraps;
+    }
+
+    public Duration stopQuietPeriod() {
+        return stopQuietPeriod;
+    }
+
+    public Duration stopTimeout() {
+        return stopTimeout;
     }
 }
