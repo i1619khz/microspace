@@ -209,7 +209,8 @@ public final class Server {
             runtime.addShutdownHook(new Thread(this::stop));
 
             if (log.isDebugEnabled()) {
-                log.debug("The shutdown hook has been registered, the service will call the stop method when the system is shut down");
+                log.debug("The shutdown hook has been registered, the " +
+                        "service will call the stop method when the system is shut down");
             }
         }
     }
