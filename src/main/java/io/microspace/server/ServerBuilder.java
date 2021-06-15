@@ -82,7 +82,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -126,7 +126,7 @@ public final class ServerBuilder {
     private final Map<ChannelOption<?>, Object> channelOptions = new HashMap<>();
     private final Map<ChannelOption<?>, Object> childChannelOptions = new HashMap<>();
     private final Banner banner = new DefaultApplicationBanner();
-    private Executor startStopExecutor = GlobalEventExecutor.INSTANCE;
+    private ExecutorService startStopExecutor = GlobalEventExecutor.INSTANCE;
     private List<ServerPort> ports = new ArrayList<>();
     private String bannerText = Flags.bannerText();
     private String bannerFont = Flags.bannerFont();
@@ -745,7 +745,7 @@ public final class ServerBuilder {
         return this;
     }
 
-    public ServerBuilder startStopExecutor(Executor startStopExecutor) {
+    public ServerBuilder startStopExecutor(ExecutorService startStopExecutor) {
         this.startStopExecutor = requireNonNull(startStopExecutor, "startStopExecutor");
         return this;
     }

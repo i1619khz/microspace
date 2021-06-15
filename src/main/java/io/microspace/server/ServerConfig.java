@@ -31,7 +31,7 @@ import io.netty.channel.ChannelOption;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 /**
  * @author i1619kHz
@@ -40,7 +40,7 @@ public final class ServerConfig {
     private final MeterRegistry meterRegistry;
     private final Map<ChannelOption<?>, Object> channelOptions;
     private final Map<ChannelOption<?>, Object> childChannelOptions;
-    private final Executor startStopExecutor;
+    private final ExecutorService startStopExecutor;
     private final Banner banner;
     private final Map<String, ServiceWrap> serviceWraps;
     private final Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionHandlers;
@@ -89,7 +89,7 @@ public final class ServerConfig {
     ServerConfig(Map<String, ServiceWrap> serviceWraps, Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionHandlers,
                  MeterRegistry meterRegistry, Class<?> bootCls, String[] args, Banner banner,
                  Map<ChannelOption<?>, Object> channelOptions, Map<ChannelOption<?>, Object> childChannelOptions,
-                 boolean useSsl, boolean useEpoll, Executor startStopExecutor, String bannerText,
+                 boolean useSsl, boolean useEpoll, ExecutorService startStopExecutor, String bannerText,
                  String bannerFont, String sessionKey, String viewSuffix, String templateFolder,
                  String serverThreadName, String profiles, boolean useSession, List<ServerPort> ports,
                  int maxNumConnections, int http2InitialConnectionWindowSize, int http2InitialStreamWindowSize,
@@ -276,7 +276,7 @@ public final class ServerConfig {
         return serverRestartCount;
     }
 
-    public Executor startStopExecutor() {
+    public ExecutorService startStopExecutor() {
         return startStopExecutor;
     }
 
