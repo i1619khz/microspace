@@ -120,6 +120,7 @@ public final class ServerBuilder {
     private static final long MIN_PING_INTERVAL_MILLIS = 1000L;
     private static final long MIN_MAX_CONNECTION_AGE_MILLIS = 1_000L;
 
+    private final Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionHandlers = new ConcurrentHashMap<>();
     private final Map<String, ServiceWrap> serviceWraps = new ConcurrentHashMap<>();
     private final MeterRegistry meterRegistry = new CompositeMeterRegistry();
     private final Map<ChannelOption<?>, Object> channelOptions = new HashMap<>();
@@ -395,6 +396,7 @@ public final class ServerBuilder {
     public ServerBuilder exceptionHandler(Class<? extends Throwable> throwableCls, ExceptionHandlerFunction function) {
         checkNotNull(throwableCls, "Throwable type can't be null");
         checkNotNull(function, "ExceptionHandler can't be null");
+        exceptionHandlers.put(requireNonNull(throwableCls), requireNonNull(function));
         return this;
     }
 
@@ -877,7 +879,7 @@ public final class ServerBuilder {
                 .filter(st -> "main".equals(st.getMethodName()))
                 .findFirst()
                 .map(StackTraceElement::getClassName)
-                .map(UncheckedFnKit.function(Class::forName));
+                .map(UncheckedFnKit.wrap(Class::forName));
         return classOptional.orElse(null);
     }
 
@@ -944,7 +946,7 @@ public final class ServerBuilder {
             }
         }
 
-        return new Server(new ServerConfig(this.serviceWraps, this.meterRegistry, bootCls, args, this.banner,
+        return new Server(new ServerConfig(this.serviceWraps, exceptionHandlers, this.meterRegistry, bootCls, args, this.banner,
                 this.channelOptions, this.childChannelOptions, this.useSsl, this.useEpoll, this.startStopExecutor,
                 this.bannerText, this.bannerFont, this.sessionKey,
                 this.viewSuffix, this.templateFolder, this.serverThreadName, this.profiles, this.useSession,
