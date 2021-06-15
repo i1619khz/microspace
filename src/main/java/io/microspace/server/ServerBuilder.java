@@ -88,7 +88,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
@@ -120,7 +119,7 @@ public final class ServerBuilder {
     private static final long MIN_PING_INTERVAL_MILLIS = 1000L;
     private static final long MIN_MAX_CONNECTION_AGE_MILLIS = 1_000L;
 
-    private final Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionHandlers = new ConcurrentHashMap<>();
+    private final Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices = new ConcurrentHashMap<>();
     private final Map<String, ServiceWrap> serviceWraps = new ConcurrentHashMap<>();
     private final MeterRegistry meterRegistry = new CompositeMeterRegistry();
     private final Map<ChannelOption<?>, Object> channelOptions = new HashMap<>();
@@ -393,10 +392,10 @@ public final class ServerBuilder {
      * @param errorHandler exception handler
      * @return this
      */
-    public ServerBuilder exceptionHandler(Class<? extends Throwable> throwableCls, ExceptionHandlerFunction function) {
-        checkNotNull(throwableCls, "Throwable type can't be null");
-        checkNotNull(function, "ExceptionHandler can't be null");
-        exceptionHandlers.put(requireNonNull(throwableCls), requireNonNull(function));
+    public ServerBuilder exceptionService(Class<? extends Throwable> throwableCls, ExceptionHandlerFunction function) {
+        checkArgument(null != throwableCls, "Throwable type can't be null");
+        checkArgument(null != function, "ExceptionHandler can't be null");
+        exceptionServices.put(requireNonNull(throwableCls), requireNonNull(function));
         return this;
     }
 
@@ -465,19 +464,9 @@ public final class ServerBuilder {
                     final HttpMethod httpMethod = pattern.getKey();
                     final List<String> pathMappings = pattern.getValue();
                     return pathMappings.stream().map(
-                            pathMapping -> Route.builder()
-                                    .path(computedPathPrefix, pathMapping)
-                                    .methods(httpMethod)
-                                    .consumes(consumableMediaTypes)
-                                    .produces(producibleMediaTypes)
-                                    .matchesParams(
-                                            predicates(method, clazz, MatchesParam.class,
-                                                    MatchesParam::value))
-                                    .matchesHeaders(
-                                            predicates(method, clazz, MatchesHeader.class,
-                                                    MatchesHeader::value))
-                                    .statusCode(statusCode)
-                                    .build());
+                            pathMapping -> buildRoute(method, clazz, statusCode,
+                                    computedPathPrefix, consumableMediaTypes,
+                                    producibleMediaTypes, httpMethod, pathMapping));
                 }).collect(toImmutableList());
 
         final Set<RequestConverterFunction> requestConverterFunctions =
@@ -490,6 +479,28 @@ public final class ServerBuilder {
         return routes.stream().map(route -> ServiceWrap.of(route, new AnnotatedService(service, method,
                 requestConverterFunctions, responseConverterFunctions, exceptionHandlerFunctions)))
                 .collect(toImmutableList());
+    }
+
+    private Route buildRoute(Method method, Class<?> clazz,
+                             HttpStatus statusCode,
+                             String computedPathPrefix,
+                             Set<MediaType> consumableMediaTypes,
+                             Set<MediaType> producibleMediaTypes,
+                             HttpMethod httpMethod,
+                             String pathMapping) {
+        return Route.builder()
+                .path(computedPathPrefix, pathMapping)
+                .methods(httpMethod)
+                .consumes(consumableMediaTypes)
+                .produces(producibleMediaTypes)
+                .matchesParams(
+                        predicates(method, clazz, MatchesParam.class,
+                                MatchesParam::value))
+                .matchesHeaders(
+                        predicates(method, clazz, MatchesHeader.class,
+                                MatchesHeader::value))
+                .statusCode(statusCode)
+                .build();
     }
 
     /**
@@ -946,7 +957,7 @@ public final class ServerBuilder {
             }
         }
 
-        return new Server(new ServerConfig(this.serviceWraps, exceptionHandlers, this.meterRegistry, bootCls, args, this.banner,
+        return new Server(new ServerConfig(this.serviceWraps, exceptionServices, this.meterRegistry, bootCls, args, this.banner,
                 this.channelOptions, this.childChannelOptions, this.useSsl, this.useEpoll, this.startStopExecutor,
                 this.bannerText, this.bannerFont, this.sessionKey,
                 this.viewSuffix, this.templateFolder, this.serverThreadName, this.profiles, this.useSession,
