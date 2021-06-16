@@ -218,7 +218,6 @@ public final class Server {
     private ChannelFuture bindServerToHost(ServerBootstrap serverBootstrap, ServerPort serverPort, AtomicInteger attempts) {
         final String host = serverPort.host();
         int port = serverPort.port();
-        final boolean isRandomPort = port == -1;
 
         try {
             isRunning.compareAndSet(false, true);
@@ -241,7 +240,7 @@ public final class Server {
             final int attemptCount = attempts.getAndIncrement();
             final int restartCount = config().serverRestartCount();
 
-            if (isRandomPort && attemptCount < restartCount) {
+            if (attemptCount < restartCount) {
                 port = FreePortFinder.findFreeLocalPort(port);
                 return bindServerToHost(serverBootstrap,
                         new ServerPort(port, serverPort.protocols()), attempts);
