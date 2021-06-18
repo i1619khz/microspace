@@ -47,6 +47,7 @@ import io.netty.handler.ssl.SslProvider;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,6 +63,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -349,6 +351,7 @@ public final class Server {
     private void stopServerAndGroup() {
         final long quietPeriod = config().stopQuietPeriod().toMillis();
         final long timeout = config().stopTimeout().toMillis();
+        final ExecutorService executorService = config().startStopExecutor();
         if (parentGroup != null) {
             parentGroup.shutdownGracefully(quietPeriod, timeout, TimeUnit.MILLISECONDS)
                     .addListener(this::logShutdownErrorIfNecessary);
@@ -356,6 +359,15 @@ public final class Server {
         if (workerGroup != null) {
             workerGroup.shutdownGracefully(quietPeriod, timeout, TimeUnit.MILLISECONDS)
                     .addListener(this::logShutdownErrorIfNecessary);
+        }
+        if (executorService != null && !executorService.isShutdown()) {
+            // GlobalEventExecutor not support shutdown method, Need to differentiate treatment
+            if (executorService instanceof GlobalEventExecutor) {
+                GlobalEventExecutor globalEventExecutor = (GlobalEventExecutor) executorService;
+                globalEventExecutor.shutdownGracefully();
+            } else {
+                executorService.shutdown();
+            }
         }
 
         try {
