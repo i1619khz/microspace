@@ -333,8 +333,8 @@ public final class Server {
     }
 
     public void stop() {
-        final long stopQuietPeriod = config().stopQuietPeriod().toMillis();
-        final long stopTimeout = config().stopTimeout().toMillis();
+        final long stopQuietPeriod = config().stopQuietPeriod();
+        final long stopTimeout = config().stopTimeout();
 
         final Stopwatch stopwatch = Stopwatch.createStarted();
         executorService.submit(() -> {
@@ -354,8 +354,9 @@ public final class Server {
         try {
             if (!executorService.awaitTermination(stopQuietPeriod, TimeUnit.SECONDS)) {
                 executorService.shutdownNow();
-                if (!executorService.awaitTermination(stopQuietPeriod, TimeUnit.SECONDS))
-                    System.err.println("Pool did not terminate");
+                if (!executorService.awaitTermination(stopQuietPeriod, TimeUnit.SECONDS)){
+                    log.info("executorService did not terminate");
+                }
             }
         } catch (InterruptedException ie) {
             executorService.shutdownNow();
@@ -365,7 +366,7 @@ public final class Server {
         log.info("Serving stop time {}{}", stopwatch.elapsed().toMillis(), "ms");
     }
 
-    public static CompletableFuture<Void> close(Iterable<? extends Channel> channels) {
+    public static CompletableFuture<Void> closeChannels(Iterable<? extends Channel> channels) {
         final List<Channel> channelsCopy = ImmutableList.copyOf(channels);
         if (channelsCopy.isEmpty()) {
             return CompletableFuture.completedFuture(null);
@@ -384,7 +385,7 @@ public final class Server {
     }
 
     private void stopServerAndGroup(long quietPeriod, long timeout) {
-        close(connectionLimitHandler.childChannels()).handle((unused3, unused4) -> {
+        closeChannels(connectionLimitHandler.childChannels()).handle((unused3, unused4) -> {
             final Future<?> workerShutdownFuture;
             if (config.shutdownWorkerGroupOnStop()) {
                 workerShutdownFuture = workerGroup.shutdownGracefully(quietPeriod, timeout, TimeUnit.MILLISECONDS)

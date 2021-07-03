@@ -28,7 +28,6 @@ import io.microspace.context.banner.Banner;
 import io.microspace.server.annotation.ExceptionHandlerFunction;
 import io.netty.channel.ChannelOption;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -48,6 +47,7 @@ public final class ServerConfig {
     private final boolean useSsl;
     private final boolean useEpoll;
     private final boolean useSession;
+    private final boolean shutdownWorkerGroupOnStop;
 
     private final String bannerText;
     private final String bannerFont;
@@ -76,8 +76,8 @@ public final class ServerConfig {
     private final long http2MaxHeaderListSize;
     private final long http2MaxStreamsPerConnection;
 
-    private final Duration stopQuietPeriod;
-    private final Duration stopTimeout;
+    private final long stopQuietPeriod;
+    private final long stopTimeout;
 
     private final String sslCert;
     private final String sslPrivateKey;
@@ -89,7 +89,7 @@ public final class ServerConfig {
     ServerConfig(Map<String, ServiceWrap> serviceWraps, Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices,
                  MeterRegistry meterRegistry, Class<?> bootCls, String[] args, Banner banner,
                  Map<ChannelOption<?>, Object> channelOptions, Map<ChannelOption<?>, Object> childChannelOptions,
-                 boolean useSsl, boolean useEpoll, ExecutorService startStopExecutor, String bannerText,
+                 boolean useSsl, boolean useEpoll, boolean shutdownWorkerGroupOnStop, ExecutorService startStopExecutor, String bannerText,
                  String bannerFont, String sessionKey, String viewSuffix, String templateFolder,
                  String serverThreadName, String profiles, boolean useSession, List<ServerPort> ports,
                  int maxNumConnections, int http2InitialConnectionWindowSize, int http2InitialStreamWindowSize,
@@ -97,7 +97,7 @@ public final class ServerConfig {
                  int http1MaxChunkSize, long idleTimeoutMillis, long pingIntervalMillis,
                  long maxConnectionAgeMillis, long http2MaxHeaderListSize, long http2MaxStreamsPerConnection,
                  int acceptThreadCount, int ioThreadCount, int serverRestartCount, String sslCert, String sslPrivateKey,
-                 String sslPrivateKeyPass, Duration stopQuietPeriod, Duration stopTimeout) {
+                 String sslPrivateKeyPass, long stopQuietPeriod, long stopTimeout) {
         this.serviceWraps = serviceWraps;
         this.exceptionServices = exceptionServices;
         this.meterRegistry = meterRegistry;
@@ -108,6 +108,7 @@ public final class ServerConfig {
         this.childChannelOptions = childChannelOptions;
         this.useSsl = useSsl;
         this.useEpoll = useEpoll;
+        this.shutdownWorkerGroupOnStop = shutdownWorkerGroupOnStop;
         this.startStopExecutor = startStopExecutor;
         this.bannerText = bannerText;
         this.bannerFont = bannerFont;
@@ -276,7 +277,7 @@ public final class ServerConfig {
         return serverRestartCount;
     }
 
-    public ExecutorService startStopExecutor() {
+    public ExecutorService executorService() {
         return startStopExecutor;
     }
 
@@ -288,15 +289,19 @@ public final class ServerConfig {
         return serviceWraps;
     }
 
-    public Duration stopQuietPeriod() {
+    public long stopQuietPeriod() {
         return stopQuietPeriod;
     }
 
-    public Duration stopTimeout() {
+    public long stopTimeout() {
         return stopTimeout;
     }
 
     public Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices() {
         return exceptionServices;
+    }
+
+    public boolean shutdownWorkerGroupOnStop() {
+        return false;
     }
 }

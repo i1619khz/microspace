@@ -30,6 +30,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.microspace.context.banner.Banner;
@@ -38,6 +39,8 @@ import io.microspace.internal.AnnotationUtil;
 import io.microspace.internal.DefaultValues;
 import io.microspace.internal.Flags;
 import io.microspace.internal.UncheckedFnKit;
+import io.microspace.server.annotation.AdditionalHeader;
+import io.microspace.server.annotation.AdditionalTrailer;
 import io.microspace.server.annotation.Consumes;
 import io.microspace.server.annotation.Delete;
 import io.microspace.server.annotation.ExceptionHandler;
@@ -58,11 +61,15 @@ import io.microspace.server.annotation.RequestConverter;
 import io.microspace.server.annotation.RequestConverterFunction;
 import io.microspace.server.annotation.ResponseConverter;
 import io.microspace.server.annotation.ResponseConverterFunction;
+import io.microspace.server.annotation.RouteExceptionHandler;
 import io.microspace.server.annotation.StatusCode;
 import io.microspace.server.annotation.Trace;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.epoll.EpollChannelOption;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
@@ -70,7 +77,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -84,10 +90,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
@@ -107,14 +115,15 @@ import static org.reflections8.ReflectionUtils.withParametersCount;
  * @author i1619kHz
  */
 public final class ServerBuilder {
+    private static final Logger log = LoggerFactory.getLogger(ServerBuilder.class);
 
     // Prohibit deprecated options
     @SuppressWarnings("deprecation")
     private static final Set<ChannelOption<?>> PROHIBITED_SOCKET_OPTIONS = ImmutableSet.of(
-            ChannelOption.ALLOW_HALF_CLOSURE, ChannelOption.AUTO_READ,
-            ChannelOption.AUTO_CLOSE, ChannelOption.MAX_MESSAGES_PER_READ,
-            ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, ChannelOption.WRITE_BUFFER_LOW_WATER_MARK,
-            EpollChannelOption.EPOLL_MODE);
+        ChannelOption.ALLOW_HALF_CLOSURE, ChannelOption.AUTO_READ,
+        ChannelOption.AUTO_CLOSE, ChannelOption.MAX_MESSAGES_PER_READ,
+        ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, ChannelOption.WRITE_BUFFER_LOW_WATER_MARK,
+        EpollChannelOption.EPOLL_MODE);
 
     private static final long MIN_PING_INTERVAL_MILLIS = 1000L;
     private static final long MIN_MAX_CONNECTION_AGE_MILLIS = 1_000L;
@@ -124,6 +133,7 @@ public final class ServerBuilder {
     private final MeterRegistry meterRegistry = new CompositeMeterRegistry();
     private final Map<ChannelOption<?>, Object> channelOptions = new HashMap<>();
     private final Map<ChannelOption<?>, Object> childChannelOptions = new HashMap<>();
+    private final Map<String, Set<String>> addedHeaders = new ConcurrentHashMap<>();
     private final Banner banner = new DefaultApplicationBanner();
     private ExecutorService startStopExecutor = GlobalEventExecutor.INSTANCE;
     private List<ServerPort> ports = new ArrayList<>();
@@ -155,9 +165,10 @@ public final class ServerBuilder {
     private boolean useSsl = Flags.useSsl();
     private boolean useEpoll = Flags.useEpoll();
     private boolean useSession = Flags.useSession();
+    private final boolean shutdownWorkerGroupOnStop = Flags.shutdownWorkerGroupOnStop();
 
-    private Duration stopQuietPeriod = Flags.stopQuietPeriod();
-    private Duration stopTimeout = Flags.stopTimeout();
+    private long stopQuietPeriod = Flags.stopQuietPeriod();
+    private long stopTimeout = Flags.stopTimeout();
 
     private String sslCert;
     private String sslPrivateKey;
@@ -256,7 +267,7 @@ public final class ServerBuilder {
     /**
      * Set template folder
      *
-     * @param folder template folder
+     * @param templateFolder template folder
      */
     public ServerBuilder templateFolder(String templateFolder) {
         checkState(Strings.isNullOrEmpty(this.templateFolder), "templateFolder was already set to %s", this.templateFolder);
@@ -300,8 +311,8 @@ public final class ServerBuilder {
     /**
      * Register get route
      *
-     * @param prefix         Route path
-     * @param requestHandler Request handler
+     * @param prefix  Route path
+     * @param service HttpService
      * @return this
      */
     public ServerBuilder get(String prefix, HttpService service) {
@@ -311,8 +322,8 @@ public final class ServerBuilder {
     /**
      * Register post route
      *
-     * @param prefix         Route path
-     * @param requestHandler Request handler
+     * @param prefix  Route path
+     * @param service HttpService
      * @return this
      */
     public ServerBuilder post(String prefix, HttpService service) {
@@ -322,8 +333,8 @@ public final class ServerBuilder {
     /**
      * Register head route
      *
-     * @param prefix         Route path
-     * @param requestHandler Request handler
+     * @param prefix  Route path
+     * @param service HttpService
      * @return this
      */
     public ServerBuilder head(String prefix, HttpService service) {
@@ -333,8 +344,8 @@ public final class ServerBuilder {
     /**
      * Register put route
      *
-     * @param prefix         Route path
-     * @param requestHandler Request handler
+     * @param prefix  Route path
+     * @param service HttpService
      * @return this
      */
     public ServerBuilder put(String prefix, HttpService service) {
@@ -344,8 +355,8 @@ public final class ServerBuilder {
     /**
      * Register patch route
      *
-     * @param prefix         Route path
-     * @param requestHandler Request handler
+     * @param prefix  Route path
+     * @param service HttpService
      * @return this
      */
     public ServerBuilder patch(String prefix, HttpService service) {
@@ -355,8 +366,8 @@ public final class ServerBuilder {
     /**
      * Register delete route
      *
-     * @param prefix         Route path
-     * @param requestHandler Request handler
+     * @param prefix  Route path
+     * @param service HttpService
      * @return this
      */
     public ServerBuilder delete(String prefix, HttpService service) {
@@ -366,8 +377,8 @@ public final class ServerBuilder {
     /**
      * Register options route
      *
-     * @param prefix         Route path
-     * @param requestHandler Request handler
+     * @param prefix  Route path
+     * @param service HttpService
      * @return this
      */
     public ServerBuilder options(String prefix, HttpService service) {
@@ -377,25 +388,37 @@ public final class ServerBuilder {
     /**
      * Register trace route
      *
-     * @param prefix         Route path
-     * @param requestHandler Request handler
+     * @param prefix  Route path
+     * @param service HttpService
      * @return this
      */
     public ServerBuilder trace(String prefix, HttpService service) {
         return service(prefix, service, HttpMethod.TRACE);
     }
 
-    /**
-     * Register exception advice
-     *
-     * @param throwableCls exception
-     * @param errorHandler exception handler
-     * @return this
-     */
-    public ServerBuilder exceptionService(Class<? extends Throwable> throwableCls, ExceptionHandlerFunction function) {
-        checkArgument(null != throwableCls, "Throwable type can't be null");
-        checkArgument(null != function, "ExceptionHandler can't be null");
+    @CanIgnoreReturnValue
+    public ServerBuilder exceptionService(Class<? extends Throwable> throwableCls,
+                                          ExceptionHandlerFunction function) {
+        checkArgument(null != throwableCls, "throwable type can't be null");
+        checkArgument(null != function, "exceptionHandler can't be null");
         exceptionServices.put(requireNonNull(throwableCls), requireNonNull(function));
+        return this;
+    }
+
+    public ServerBuilder exceptionService(Object service) {
+        checkArgument(null != service, "service can't be null");
+        final List<Method> methods = exceptionHandlerMethods(service);
+        final Class<?> clazz = service.getClass();
+        methods.forEach(method -> {
+            final Map<Throwable, ExceptionHandlerFunction> functionMap =
+                getAnnotatedInstanceMap(method, clazz,
+                    Throwable.class,
+                    ExceptionHandlerFunction.class,
+                    ExceptionHandler.class,
+                    ExceptionHandler::exception,
+                    ExceptionHandler::value);
+            functionMap.forEach((key, value) -> exceptionService(key.getClass(), value));
+        });
         return this;
     }
 
@@ -411,15 +434,16 @@ public final class ServerBuilder {
         checkArgument(!Strings.isNullOrEmpty(prefix), "path can't be null");
         checkArgument(null != httpMethods, "need to specify of http request method registered");
         checkArgument(null != service, "httpService object can't be null");
-        serviceWraps.put(prefix, ServiceWrap.of(Route.builder()
-                .path(prefix, prefix)
-                .methods(httpMethods)
-                .consumes(ImmutableSet.of())
-                .produces(ImmutableSet.of())
-                .matchesParams(ImmutableList.of())
-                .matchesHeaders(ImmutableList.of())
-                .statusCode(HttpStatus.OK)
-                .build(), service));
+        final Route route = Route.builder()
+            .path(prefix, prefix)
+            .methods(httpMethods)
+            .consumes(ImmutableSet.of())
+            .produces(ImmutableSet.of())
+            .matchesParams(ImmutableList.of())
+            .matchesHeaders(ImmutableList.of())
+            .statusCode(HttpStatus.OK)
+            .build();
+        serviceWraps.put(prefix, ServiceWrap.of(route, service));
         return this;
     }
 
@@ -435,19 +459,18 @@ public final class ServerBuilder {
     }
 
     public ServerBuilder annotatedService(String prefix, Object service) {
-        checkArgument(!Strings.isNullOrEmpty(prefix), "prefix can't be null");
-        checkArgument(null != service, "object can't be null");
-
+        checkNotNull(prefix, "prefix");
+        checkNotNull(service, "object");
         final List<Method> methods = requestMappingMethods(service);
         final List<ServiceWrap> serviceWraps = methods.stream()
-                .flatMap(method -> buildService(prefix, service, method).stream())
-                .collect(toImmutableList());
+            .flatMap(method -> create(prefix, service, method).stream())
+            .collect(toImmutableList());
 
         serviceWraps.forEach(serviceWrap -> this.serviceWraps.put(serviceWrap.route().fullPath(), serviceWrap));
-        return this;
+        return exceptionService(service);
     }
 
-    private List<ServiceWrap> buildService(String prefix, Object service, Method method) {
+    private List<ServiceWrap> create(String prefix, Object service, Method method) {
         final Set<Annotation> methodAnnotations = httpMethodAnnotations(method);
         if (methodAnnotations.isEmpty()) {
             throw new IllegalArgumentException("HTTP Method specification is missing: " + method.getName());
@@ -460,25 +483,36 @@ public final class ServerBuilder {
         final Set<MediaType> consumableMediaTypes = consumableMediaTypes(method, clazz);
         final Set<MediaType> producibleMediaTypes = producibleMediaTypes(method, clazz);
         final List<Route> routes = httpMethodPatternsMap.entrySet().stream().flatMap(
-                pattern -> {
-                    final HttpMethod httpMethod = pattern.getKey();
-                    final List<String> pathMappings = pattern.getValue();
-                    return pathMappings.stream().map(
-                            pathMapping -> buildRoute(method, clazz, statusCode,
-                                    computedPathPrefix, consumableMediaTypes,
-                                    producibleMediaTypes, httpMethod, pathMapping));
-                }).collect(toImmutableList());
+            pattern -> {
+                final HttpMethod httpMethod = pattern.getKey();
+                final List<String> pathMappings = pattern.getValue();
+                return pathMappings.stream().map(
+                    pathMapping -> buildRoute(method, clazz, statusCode,
+                        computedPathPrefix, consumableMediaTypes,
+                        producibleMediaTypes, httpMethod, pathMapping));
+            }).collect(toImmutableList());
 
         final Set<RequestConverterFunction> requestConverterFunctions =
-                getAnnotatedInstances(method, clazz, RequestConverter.class, RequestConverterFunction.class);
+            getAnnotatedInstances(method, clazz, RequestConverter.class, RequestConverterFunction.class);
         final Set<ResponseConverterFunction> responseConverterFunctions =
-                getAnnotatedInstances(method, clazz, ResponseConverter.class, ResponseConverterFunction.class);
+            getAnnotatedInstances(method, clazz, ResponseConverter.class, ResponseConverterFunction.class);
         final Set<ExceptionHandlerFunction> exceptionHandlerFunctions =
-                getAnnotatedInstances(method, clazz, ExceptionHandler.class, ExceptionHandlerFunction.class);
+            getAnnotatedInstances(method, clazz, RouteExceptionHandler.class, ExceptionHandlerFunction.class);
+
+        final String classAlias = clazz.getName();
+        final String methodAlias = String.format("%s.%s()", classAlias, method.getName());
+        setAdditionalHeader(clazz, "header", classAlias, "class", AdditionalHeader.class,
+            AdditionalHeader::name, AdditionalHeader::value);
+        setAdditionalHeader(method, "header", methodAlias, "method", AdditionalHeader.class,
+            AdditionalHeader::name, AdditionalHeader::value);
+        setAdditionalHeader(clazz, "trailer", classAlias, "class",
+            AdditionalTrailer.class, AdditionalTrailer::name, AdditionalTrailer::value);
+        setAdditionalHeader(method, "trailer", methodAlias, "method",
+            AdditionalTrailer.class, AdditionalTrailer::name, AdditionalTrailer::value);
 
         return routes.stream().map(route -> ServiceWrap.of(route, new AnnotatedService(service, method,
-                requestConverterFunctions, responseConverterFunctions, exceptionHandlerFunctions)))
-                .collect(toImmutableList());
+            requestConverterFunctions, responseConverterFunctions, exceptionHandlerFunctions)))
+            .collect(toImmutableList());
     }
 
     private Route buildRoute(Method method, Class<?> clazz,
@@ -489,18 +523,18 @@ public final class ServerBuilder {
                              HttpMethod httpMethod,
                              String pathMapping) {
         return Route.builder()
-                .path(computedPathPrefix, pathMapping)
-                .methods(httpMethod)
-                .consumes(consumableMediaTypes)
-                .produces(producibleMediaTypes)
-                .matchesParams(
-                        predicates(method, clazz, MatchesParam.class,
-                                MatchesParam::value))
-                .matchesHeaders(
-                        predicates(method, clazz, MatchesHeader.class,
-                                MatchesHeader::value))
-                .statusCode(statusCode)
-                .build();
+            .path(computedPathPrefix, pathMapping)
+            .methods(httpMethod)
+            .consumes(consumableMediaTypes)
+            .produces(producibleMediaTypes)
+            .matchesParams(
+                predicates(method, clazz, MatchesParam.class,
+                    MatchesParam::value))
+            .matchesHeaders(
+                predicates(method, clazz, MatchesHeader.class,
+                    MatchesHeader::value))
+            .statusCode(statusCode)
+            .build();
     }
 
     /**
@@ -517,32 +551,45 @@ public final class ServerBuilder {
      * </ul>
      */
     private static final Map<Class<?>, HttpMethod> HTTP_METHOD_MAP =
-            ImmutableMap.<Class<?>, HttpMethod>builder()
-                    .put(Options.class, HttpMethod.OPTIONS)
-                    .put(Get.class, HttpMethod.GET)
-                    .put(Head.class, HttpMethod.HEAD)
-                    .put(Post.class, HttpMethod.POST)
-                    .put(Put.class, HttpMethod.PUT)
-                    .put(Patch.class, HttpMethod.PATCH)
-                    .put(Delete.class, HttpMethod.DELETE)
-                    .put(Trace.class, HttpMethod.TRACE)
-                    .build();
+        ImmutableMap.<Class<?>, HttpMethod>builder()
+            .put(Options.class, HttpMethod.OPTIONS)
+            .put(Get.class, HttpMethod.GET)
+            .put(Head.class, HttpMethod.HEAD)
+            .put(Post.class, HttpMethod.POST)
+            .put(Put.class, HttpMethod.PUT)
+            .put(Patch.class, HttpMethod.PATCH)
+            .put(Delete.class, HttpMethod.DELETE)
+            .put(Trace.class, HttpMethod.TRACE)
+            .build();
+
+    @SuppressWarnings("unchecked")
+    private static List<Method> getMethodsByPredicate(Object service,
+                                                      Predicate<? super Class<? extends Annotation>> predicate) {
+        return getAllMethods(service.getClass(), withModifier(Modifier.PUBLIC))
+            .stream()
+            // Lookup super classes just in case if the object is a proxy.
+            .filter(m -> AnnotationUtil.getAnnotations(m, FindOption.LOOKUP_SUPER_CLASSES)
+                .stream()
+                .map(Annotation::annotationType)
+                .anyMatch(predicate))
+            .sorted(Comparator.comparingInt(ServerBuilder::order))
+            .collect(toImmutableList());
+    }
+
+    /**
+     * Returns the list of {@link ExceptionHandler} annotated methods.
+     */
+    private static List<Method> exceptionHandlerMethods(Object service) {
+        return getMethodsByPredicate(service, type -> type
+            .isAssignableFrom(ExceptionHandler.class));
+    }
 
     /**
      * Returns the list of {@link Path} annotated methods.
      */
-    @SuppressWarnings("unchecked")
     private static List<Method> requestMappingMethods(Object object) {
-        return getAllMethods(object.getClass(), withModifier(Modifier.PUBLIC))
-                .stream()
-                // Lookup super classes just in case if the object is a proxy.
-                .filter(m -> AnnotationUtil.getAnnotations(m, FindOption.LOOKUP_SUPER_CLASSES)
-                        .stream()
-                        .map(Annotation::annotationType)
-                        .anyMatch(annotationType -> annotationType.isAssignableFrom(Path.class) ||
-                                HTTP_METHOD_MAP.containsKey(annotationType)))
-                .sorted(Comparator.comparingInt(ServerBuilder::order))
-                .collect(toImmutableList());
+        return getMethodsByPredicate(object, type -> type
+            .isAssignableFrom(Path.class) || HTTP_METHOD_MAP.containsKey(type));
     }
 
     /**
@@ -569,19 +616,80 @@ public final class ServerBuilder {
      */
     private Set<Annotation> httpMethodAnnotations(Method method) {
         return AnnotationUtil.getAnnotations(method, FindOption.LOOKUP_SUPER_CLASSES)
-                .stream()
-                .filter(annotation -> HTTP_METHOD_MAP.containsKey(annotation.annotationType()) ||
-                        annotation.annotationType().isAssignableFrom(Path.class))
-                .collect(Collectors.toSet());
+            .stream()
+            .filter(annotation -> HTTP_METHOD_MAP.containsKey(annotation.annotationType()) ||
+                annotation.annotationType().isAssignableFrom(Path.class))
+            .collect(Collectors.toSet());
     }
 
-    private <T extends Annotation, R> ImmutableSet<R> getAnnotatedInstances(
-            AnnotatedElement method, AnnotatedElement clazz, Class<T> annotationType, Class<R> resultType) {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static <A extends Annotation, K1 extends K, V1 extends V, K, V>
+    Map<K, V> getAnnotatedInstanceMap(AnnotatedElement method,
+                                      AnnotatedElement clazz,
+                                      Class<K> keyType,
+                                      Class<V> valueType,
+                                      Class<A> annotation,
+                                      Function<A, Class<K1>> keyGetter,
+                                      Function<A, Class<V1>> valueGetter) {
+        final ImmutableMap.Builder<K, V> builder = ImmutableMap.builder();
+        Streams.concat(AnnotationUtil.findAll(clazz, annotation).stream(),
+            AnnotationUtil.findAll(method, annotation).stream()
+        ).forEach(header -> {
+            final Class<K1> key = keyGetter.apply(header);
+            final Class<V1> value = valueGetter.apply(header);
+            final @Nullable Constructor keyConstructor = Iterables.getFirst(
+                getConstructors(key, withParametersCount(0)), null);
+            final @Nullable Constructor valueConstructor = Iterables.getFirst(
+                getConstructors(value, withParametersCount(0)), null);
+            if (null != keyConstructor && null != valueConstructor) {
+                builder.put(getInstance(keyConstructor, keyType), getInstance(valueConstructor, valueType));
+            }
+        });
+        return builder.build();
+    }
+
+    private <T extends Annotation> void setAdditionalHeader(AnnotatedElement element,
+                                                            String clsAlias,
+                                                            String elementAlias,
+                                                            String level,
+                                                            Class<T> annotation,
+                                                            Function<T, String> nameGetter,
+                                                            Function<T, String[]> valueGetter) {
+        requireNonNull(element, "element");
+        requireNonNull(level, "level");
+        AnnotationUtil.findAll(element, annotation).forEach(header -> {
+            final String name = nameGetter.apply(header);
+            final String[] value = valueGetter.apply(header);
+            if (addedHeaders.containsKey(name)) {
+                log.warn("The additional {} named '{}' at '{}' is set at the same {} level already;" +
+                        "ignoring.",
+                    clsAlias, name, elementAlias, level);
+                return;
+            }
+            addedHeaders.put(name, ImmutableSet.copyOf(value));
+        });
+    }
+
+    private <T extends Annotation, R> ImmutableSet<R> getAnnotatedInstances(AnnotatedElement method,
+                                                                            AnnotatedElement clazz,
+                                                                            Class<T> annotationType,
+                                                                            Class<R> resultType) {
         final ImmutableSet.Builder<R> builder = ImmutableSet.builder();
         Stream.concat(AnnotationUtil.findAll(method, annotationType).stream(),
-                AnnotationUtil.findAll(clazz, annotationType).stream())
-                .forEach(annotation -> builder.add(getInstance(annotation, resultType)));
+            AnnotationUtil.findAll(clazz, annotationType).stream())
+            .forEach(annotation -> builder.add(getInstance(annotation, resultType)));
         return builder.build();
+    }
+
+    private static <T> T getInstance(Constructor<?> constructor, Class<T> expectedType) {
+        try {
+            constructor.setAccessible(true);
+            return expectedType.cast(constructor.newInstance());
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                "A class specified in " + constructor.getName() +
+                    " annotation cannot be cast to " + expectedType, e);
+        }
     }
 
     private <T> T getInstance(Annotation annotation, Class<T> expectedType) {
@@ -590,8 +698,8 @@ public final class ServerBuilder {
             return expectedType.cast(instance);
         } catch (Exception e) {
             throw new IllegalArgumentException(
-                    "A class specified in @" + annotation.annotationType().getSimpleName() +
-                            " annotation cannot be cast to " + expectedType, e);
+                "A class specified in @" + annotation.annotationType().getSimpleName() +
+                    " annotation cannot be cast to " + expectedType, e);
         }
     }
 
@@ -599,7 +707,7 @@ public final class ServerBuilder {
     private <T> T getInstance(Annotation annotation) throws Exception {
         Class<? extends T> clazz = (Class<? extends T>) invokeValueMethod(annotation).getClass();
         final Constructor<? extends T> constructor =
-                Iterables.getFirst(getConstructors(clazz, withParametersCount(0)), null);
+            Iterables.getFirst(getConstructors(clazz, withParametersCount(0)), null);
         constructor.setAccessible(true);
         return constructor.newInstance();
     }
@@ -614,7 +722,7 @@ public final class ServerBuilder {
         final List<T> classLevel = AnnotationUtil.findAll(clazz, annotationType);
         final List<T> methodLevel = AnnotationUtil.findAll(method, annotationType);
         return Streams.concat(classLevel.stream(), methodLevel.stream())
-                .map(toStringPredicate).collect(toImmutableList());
+            .map(toStringPredicate).collect(toImmutableList());
     }
 
     private HttpStatus statusCode(Method method) {
@@ -623,11 +731,11 @@ public final class ServerBuilder {
             // Set a default HTTP status code for a response depending on the return type of the method.
             final Class<?> returnType = method.getReturnType();
             return returnType == Void.class ||
-                    returnType == void.class ? HttpStatus.NO_CONTENT : HttpStatus.OK;
+                returnType == void.class ? HttpStatus.NO_CONTENT : HttpStatus.OK;
         }
         final int statusCode = statusCodeAnnotation.value();
         checkArgument(statusCode >= 0,
-                "invalid HTTP status code: %s (expected: >= 0)", statusCode);
+            "invalid HTTP status code: %s (expected: >= 0)", statusCode);
         return HttpStatus.valueOf(statusCode);
     }
 
@@ -650,7 +758,7 @@ public final class ServerBuilder {
         checkArgument(!Strings.isNullOrEmpty(paramName), "paramName");
         if (Strings.isNullOrEmpty(path) || path.charAt(0) != '/') {
             throw new IllegalArgumentException(paramName + ": " + path +
-                    " (expected: an absolute path starting with '/')");
+                " (expected: an absolute path starting with '/')");
         }
     }
 
@@ -660,9 +768,9 @@ public final class ServerBuilder {
             consumes = AnnotationUtil.findAll(clazz, Consumes.class);
         }
         return consumes.stream()
-                .map(Consumes::value)
-                .map(MediaType::parse)
-                .collect(toImmutableSet());
+            .map(Consumes::value)
+            .map(MediaType::parse)
+            .collect(toImmutableSet());
     }
 
     private Set<MediaType> producibleMediaTypes(Method method, Class<?> clazz) {
@@ -671,9 +779,9 @@ public final class ServerBuilder {
             produces = AnnotationUtil.findAll(clazz, Produces.class);
         }
         return produces.stream()
-                .map(Produces::value)
-                .map(MediaType::parse)
-                .collect(toImmutableSet());
+            .map(Produces::value)
+            .map(MediaType::parse)
+            .collect(toImmutableSet());
     }
 
     /**
@@ -685,57 +793,58 @@ public final class ServerBuilder {
     private Map<HttpMethod, List<String>> getHttpMethodPatternsMap(Method method,
                                                                    Set<Annotation> methodAnnotations) {
         final Map<HttpMethod, List<String>> httpMethodAnnotatedPatternMap =
-                getHttpMethodAnnotatedPatternMap(methodAnnotations);
+            getHttpMethodAnnotatedPatternMap(methodAnnotations);
 
         if (httpMethodAnnotatedPatternMap.isEmpty()) {
             throw new IllegalArgumentException(method.getDeclaringClass().getName() + '#' + method.getName() +
-                    " must have an HTTP method annotation.");
+                " must have an HTTP method annotation.");
         }
 
         return httpMethodAnnotatedPatternMap.entrySet().stream().collect(
-                ImmutableMap.toImmutableMap(
-                        Map.Entry::getKey,
-                        entry -> {
-                            final List<String> httpMethodPaths = entry.getValue();
-                            if (httpMethodPaths.isEmpty()) {
-                                // Add an empty value if HTTP method annotation value is empty or not specified.
-                                httpMethodPaths.add("");
-                            }
-                            return ImmutableList.copyOf(httpMethodPaths);
-                        }));
+            ImmutableMap.toImmutableMap(
+                Map.Entry::getKey,
+                entry -> {
+                    final List<String> httpMethodPaths = entry.getValue();
+                    if (httpMethodPaths.isEmpty()) {
+                        // Add an empty value if HTTP method annotation value is empty or not specified.
+                        httpMethodPaths.add("");
+                    }
+                    return ImmutableList.copyOf(httpMethodPaths);
+                }));
     }
 
     private Map<HttpMethod, List<String>> getHttpMethodAnnotatedPatternMap(
-            Set<Annotation> methodAnnotations) {
+        Set<Annotation> methodAnnotations) {
         final Map<HttpMethod, List<String>> httpMethodPatternMap = new EnumMap<>(HttpMethod.class);
         methodAnnotations.stream()
-                .filter(annotation -> HTTP_METHOD_MAP.containsKey(annotation.annotationType())
-                        || annotation.annotationType().isAssignableFrom(Path.class))
-                .forEach(annotation -> {
-                    HttpMethod httpMethod = HTTP_METHOD_MAP.get(annotation.annotationType());
-                    if (null == httpMethod) {
-                        final Path path = ((Path) annotation);
-                        httpMethod = path.method();
-                    }
-                    final String value = (String) invokeValueMethod(annotation);
-                    final List<String> patterns = httpMethodPatternMap
-                            .computeIfAbsent(httpMethod, ignored -> new ArrayList<>());
-                    if (DefaultValues.isSpecified(value)) {
-                        patterns.add(value);
-                    }
-                });
+            .filter(annotation -> HTTP_METHOD_MAP.containsKey(annotation.annotationType())
+                || annotation.annotationType().isAssignableFrom(Path.class))
+            .forEach(annotation -> {
+                HttpMethod httpMethod = HTTP_METHOD_MAP.get(annotation.annotationType());
+                if (null == httpMethod) {
+                    final Path path = ((Path) annotation);
+                    httpMethod = path.method();
+                }
+                final String value = (String) invokeValueMethod(annotation);
+                final List<String> patterns = httpMethodPatternMap
+                    .computeIfAbsent(httpMethod, ignored -> new ArrayList<>());
+                if (DefaultValues.isSpecified(value)) {
+                    patterns.add(value);
+                }
+            });
         return httpMethodPatternMap;
     }
 
+    @SuppressWarnings("unchecked")
     private static Object invokeAnnotationMethod(Annotation a, String invokeName) {
         try {
-            @SuppressWarnings("unchecked") final Method method = Iterables.getFirst(
-                    getMethods(a.annotationType(), withName(invokeName)), null);
+            final Method method = Iterables.getFirst(
+                getMethods(a.annotationType(), withName(invokeName)), null);
             assert method != null : "No 'value' method is found from " + a;
             return method.invoke(a);
         } catch (Exception e) {
             throw new IllegalStateException("An annotation @" + a.annotationType().getSimpleName() +
-                    " must have a 'value' method", e);
+                " must have a 'value' method", e);
         }
     }
 
@@ -746,12 +855,12 @@ public final class ServerBuilder {
         return invokeAnnotationMethod(a, "value");
     }
 
-    public ServerBuilder stopQuietPeriod(Duration stopQuietPeriod) {
+    public ServerBuilder stopQuietPeriod(long stopQuietPeriod) {
         this.stopQuietPeriod = stopQuietPeriod;
         return this;
     }
 
-    public ServerBuilder stopTimeout(Duration stopTimeout) {
+    public ServerBuilder stopTimeout(long stopTimeout) {
         this.stopTimeout = stopTimeout;
         return this;
     }
@@ -848,7 +957,7 @@ public final class ServerBuilder {
     public <T> ServerBuilder channelOption(ChannelOption<T> option, T value) {
         requireNonNull(option, "option");
         checkArgument(!PROHIBITED_SOCKET_OPTIONS.contains(option),
-                "prohibited socket option: %s", option);
+            "prohibited socket option: %s", option);
 
         option.validate(value);
         channelOptions.put(option, value);
@@ -858,7 +967,7 @@ public final class ServerBuilder {
     public <T> ServerBuilder childChannelOption(ChannelOption<T> option, T value) {
         requireNonNull(option, "option");
         checkArgument(!PROHIBITED_SOCKET_OPTIONS.contains(option),
-                "prohibited socket option: %s", option);
+            "prohibited socket option: %s", option);
 
         option.validate(value);
         childChannelOptions.put(option, value);
@@ -886,11 +995,11 @@ public final class ServerBuilder {
     private Class<?> findMainCaller() {
         final Thread currentThread = Thread.currentThread();
         final Optional<? extends Class<?>> classOptional = Arrays.stream(currentThread
-                .getStackTrace())
-                .filter(st -> "main".equals(st.getMethodName()))
-                .findFirst()
-                .map(StackTraceElement::getClassName)
-                .map(UncheckedFnKit.wrap(Class::forName));
+            .getStackTrace())
+            .filter(st -> "main".equals(st.getMethodName()))
+            .findFirst()
+            .map(StackTraceElement::getClassName)
+            .map(UncheckedFnKit.wrap(Class::forName));
         return classOptional.orElse(null);
     }
 
@@ -911,8 +1020,8 @@ public final class ServerBuilder {
                     final ServerPort port = distinctPorts.get(i);
                     if (port.localAddress().equals(p.localAddress())) {
                         final ServerPort merged =
-                                new ServerPort(port.localAddress(),
-                                        Sets.union(port.protocols(), p.protocols()));
+                            new ServerPort(port.localAddress(),
+                                Sets.union(port.protocols(), p.protocols()));
                         distinctPorts.set(i, merged);
                         found = true;
                         break;
@@ -933,9 +1042,9 @@ public final class ServerBuilder {
      */
     public Server build(Class<?> bootCls, String[] args) {
         this.ports.forEach(
-                port -> checkState(port.protocols().stream().anyMatch(p -> p != PROXY),
-                        "protocols: %s (expected: at least one %s or %s)",
-                        port.protocols(), HTTP, HTTPS));
+            port -> checkState(port.protocols().stream().anyMatch(p -> p != PROXY),
+                "protocols: %s (expected: at least one %s or %s)",
+                port.protocols(), HTTP, HTTPS));
 
         if (!this.ports.isEmpty()) {
             ports = resolveDistinctPorts(this.ports);
@@ -957,15 +1066,15 @@ public final class ServerBuilder {
             }
         }
 
-        return new Server(new ServerConfig(this.serviceWraps, exceptionServices, this.meterRegistry, bootCls, args, this.banner,
-                this.channelOptions, this.childChannelOptions, this.useSsl, this.useEpoll, this.startStopExecutor,
-                this.bannerText, this.bannerFont, this.sessionKey,
-                this.viewSuffix, this.templateFolder, this.serverThreadName, this.profiles, this.useSession,
-                this.ports, this.maxNumConnections, this.http2InitialConnectionWindowSize,
-                this.http2InitialStreamWindowSize, this.http2MaxFrameSize, this.http1MaxInitialLineLength,
-                this.http1MaxHeaderSize, this.http1MaxChunkSize, this.idleTimeoutMillis, this.pingIntervalMillis,
-                this.maxConnectionAgeMillis, this.http2MaxHeaderListSize, this.http2MaxStreamsPerConnection,
-                this.acceptThreadCount, this.ioThreadCount, this.serverRestartCount, this.sslCert, this.sslPrivateKey,
-                this.sslPrivateKeyPass, stopQuietPeriod, stopTimeout), null);
+        return new Server(new ServerConfig(serviceWraps, exceptionServices, meterRegistry,
+            bootCls, args, banner, channelOptions, childChannelOptions, useSsl, useEpoll,
+            shutdownWorkerGroupOnStop, startStopExecutor, bannerText, bannerFont, sessionKey,
+            viewSuffix, templateFolder, serverThreadName, profiles, useSession,
+            ports, maxNumConnections, http2InitialConnectionWindowSize,
+            http2InitialStreamWindowSize, http2MaxFrameSize, http1MaxInitialLineLength,
+            http1MaxHeaderSize, http1MaxChunkSize, idleTimeoutMillis, pingIntervalMillis,
+            maxConnectionAgeMillis, http2MaxHeaderListSize, http2MaxStreamsPerConnection,
+            acceptThreadCount, ioThreadCount, serverRestartCount, sslCert, sslPrivateKey,
+            sslPrivateKeyPass, stopQuietPeriod, stopTimeout), null);
     }
 }
