@@ -232,10 +232,10 @@ public final class Server {
                 return serverBootstrap.bind(port).sync();
             }
         } catch (Throwable e) {
-            final boolean isBindError = isBindException(e);
+            final boolean isBindException = isBindException(e);
 
             if (log.isErrorEnabled()) {
-                if (isBindError) {
+                if (isBindException) {
                     log.error("Unable to start server. Port already {} in use.", port);
                 } else {
                     log.error("Error starting Microspace server: " + e.getMessage(), e);
@@ -366,7 +366,7 @@ public final class Server {
         log.info("Serving stop time {}{}", stopwatch.elapsed().toMillis(), "ms");
     }
 
-    public static CompletableFuture<Void> closeChannels(Iterable<? extends Channel> channels) {
+    private CompletableFuture<Void> closeChannels(Iterable<? extends Channel> channels) {
         final List<Channel> channelsCopy = ImmutableList.copyOf(channels);
         if (channelsCopy.isEmpty()) {
             return CompletableFuture.completedFuture(null);
