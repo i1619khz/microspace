@@ -708,6 +708,7 @@ public final class ServerBuilder {
         Class<? extends T> clazz = (Class<? extends T>) invokeValueMethod(annotation).getClass();
         final Constructor<? extends T> constructor =
             Iterables.getFirst(getConstructors(clazz, withParametersCount(0)), null);
+        assert constructor != null : "constructor can't be null";
         constructor.setAccessible(true);
         return constructor.newInstance();
     }
