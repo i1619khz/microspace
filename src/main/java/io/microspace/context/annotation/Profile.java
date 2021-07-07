@@ -25,7 +25,6 @@ package io.microspace.context.annotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
-import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -36,21 +35,9 @@ import java.lang.annotation.Target;
 @Documented
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-@Repeatable(ComponentScans.class)
-public @interface ComponentScan {
-    String[] basePackages() default {};
-
-    Class<?>[] basePackageClasses() default {};
-
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.ANNOTATION_TYPE})
-    @interface Filter {
-        FilterType type() default FilterType.ANNOTATION;
-
-        String[] pattern() default {};
-
-        Class<?>[] value() default {};
-
-        Class<?>[] classes() default {};
-    }
+public @interface Profile {
+    /**
+     * The set of profiles for which the annotated component should be registered.
+     */
+    String[] value();
 }
