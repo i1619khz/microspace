@@ -32,13 +32,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @author WangYi
- * @since 2020/10/7
+ * @author i1619kHz
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.METHOD})
-public @interface CorsDecorator {
+public @interface Cors {
     /**
      * Allowed origins.
      * Sets this property to be {@code "*"} to allow any origin.
