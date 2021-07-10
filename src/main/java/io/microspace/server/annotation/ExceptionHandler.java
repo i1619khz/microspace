@@ -33,8 +33,11 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Documented
-@Target({ElementType.METHOD})
+@Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ExceptionHandler {
-    Class<? extends ExceptionHandlerFunction> value();
+    Class<? extends Throwable> exception();
+
+    Class<? extends ExceptionHandlerFunction> value() default
+            ExceptionHandlerFunction.EmptyExceptionHandlerFunction.class;
 }

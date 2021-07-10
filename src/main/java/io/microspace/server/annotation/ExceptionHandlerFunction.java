@@ -23,16 +23,17 @@
  */
 package io.microspace.server.annotation;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import io.microspace.server.Request;
+import io.microspace.server.Response;
 
 /**
  * @author i1619kHz
  */
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.TYPE, ElementType.METHOD})
-public @interface ExceptionHandlers {
-    RouteExceptionHandler[] value();
+@FunctionalInterface
+public interface ExceptionHandlerFunction {
+    void handle(Request request, Response response, Throwable throwable);
+
+    class EmptyExceptionHandlerFunction implements ExceptionHandlerFunction {
+        public void handle(Request request, Response response, Throwable throwable) {/* no thing */}
+    }
 }
