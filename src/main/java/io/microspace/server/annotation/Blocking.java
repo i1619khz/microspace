@@ -33,8 +33,6 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Documented
-@Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Error {
-    Class<? extends Throwable> value();
-}
+@Target({ElementType.METHOD})
+public @interface Blocking {}
