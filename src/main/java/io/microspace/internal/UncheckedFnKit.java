@@ -35,7 +35,7 @@ public class UncheckedFnKit {
         R apply(T t) throws E;
     }
 
-    public static <T, R> Function<T, R> function(FunctionWithExceptions<T, R, Throwable> function) {
+    public static <T, R> Function<T, R> wrap(FunctionWithExceptions<T, R, Throwable> function) {
         return t -> {
             try {
                 return function.apply(t);
