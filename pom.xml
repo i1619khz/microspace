@@ -20,19 +20,18 @@
         <bcprov-jdk15on.version>1.68</bcprov-jdk15on.version>
         <logback.version>1.2.3</logback.version>
         <aopalliance.version>1.0</aopalliance.version>
-        <el-api.version>3.0.0</el-api.version>
-        <el-ri.version>1.0</el-ri.version>
-        <powermock.version>2.0.9</powermock.version>
         <banana.version>1.2.0</banana.version>
         <micrometer-core.version>1.6.6</micrometer-core.version>
         <reflectasm.version>1.11.9</reflectasm.version>
         <jimfs.version>1.2</jimfs.version>
         <disruptor.version>3.4.4</disruptor.version>
+        <juel.version>2.2.6</juel.version>
+        <netty-quic.version>0.0.18.Final</netty-quic.version>
+        <netty-io_using.version>0.0.8.Final</netty-io_using.version>
+        <netty-codec-http3.version>0.0.8.Final</netty-codec-http3.version>
         <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
         <maven-license-plugin.version>1.9.0</maven-license-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
     </properties>
 
     <dependencies>
@@ -60,6 +59,27 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>${guava.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.netty.incubator</groupId>
+            <artifactId>netty-incubator-transport-native-io_uring</artifactId>
+            <version>${netty-io_using.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.netty.incubator</groupId>
+            <artifactId>netty-incubator-codec-http3</artifactId>
+            <version>${netty-codec-http3.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.netty.incubator</groupId>
+                    <artifactId>netty-incubator-codec-quic</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.netty.incubator</groupId>
+            <artifactId>netty-incubator-codec-quic</artifactId>
+            <version>${netty-quic.version}</version>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
@@ -147,30 +167,29 @@
             <version>${logback.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.sun.el</groupId>
-            <artifactId>el-ri</artifactId>
-            <version>${el-ri.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>javax.el</groupId>
-            <artifactId>javax.el-api</artifactId>
-            <version>${el-api.version}</version>
-        </dependency>
-        <dependency>
             <groupId>aopalliance</groupId>
             <artifactId>aopalliance</artifactId>
             <version>${aopalliance.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.powermock</groupId>
-            <artifactId>powermock-core</artifactId>
-            <version>${powermock.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
             <version>${disruptor.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>de.odysseus.juel</groupId>
+            <artifactId>juel-api</artifactId>
+            <version>${juel.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>de.odysseus.juel</groupId>
+            <artifactId>juel-impl</artifactId>
+            <version>${juel.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>de.odysseus.juel</groupId>
+            <artifactId>juel-spi</artifactId>
+            <version>${juel.version}</version>
         </dependency>
     </dependencies>
 
