@@ -23,15 +23,6 @@
  */
 package io.microspace.server;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.Set;
-
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.microspace.server.SessionProtocol.H1;
 import static io.microspace.server.SessionProtocol.H1C;
@@ -41,6 +32,15 @@ import static io.microspace.server.SessionProtocol.HTTP;
 import static io.microspace.server.SessionProtocol.HTTPS;
 import static io.microspace.server.SessionProtocol.PROXY;
 import static java.util.Objects.requireNonNull;
+
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.util.Set;
+
+import com.google.common.base.MoreObjects;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 /**
  * @author i1619kHz
@@ -78,15 +78,15 @@ public final class ServerPort implements Comparable<ServerPort> {
         this.protocols = Sets.immutableEnumSet(protocols);
 
         checkArgument(!this.protocols.isEmpty(),
-                "protocols: %s (must not be empty)", this.protocols);
+                      "protocols: %s (must not be empty)", this.protocols);
         checkArgument(this.protocols.contains(HTTP) || this.protocols.contains(HTTPS),
-                "protocols: %s (must contain HTTP or HTTPS)", this.protocols);
+                      "protocols: %s (must contain HTTP or HTTPS)", this.protocols);
         checkArgument(this.protocols.stream().allMatch(p -> p == HTTP || p == HTTPS || p == PROXY),
-                "protocols: %s (must not contain other than %s, %s or %s)",
-                this.protocols, HTTP, HTTPS, PROXY);
+                      "protocols: %s (must not contain other than %s, %s or %s)",
+                      this.protocols, HTTP, HTTPS, PROXY);
 
         this.comparisonStr = localAddress.getAddress().getHostAddress() + '/' +
-                localAddress.getPort() + '/' + protocols;
+                             localAddress.getPort() + '/' + protocols;
     }
 
     /**
@@ -156,9 +156,9 @@ public final class ServerPort implements Comparable<ServerPort> {
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("localAddress", localAddress)
-                .add("protocols", protocols)
-                .add("comparisonStr", comparisonStr)
-                .toString();
+                          .add("localAddress", localAddress)
+                          .add("protocols", protocols)
+                          .add("comparisonStr", comparisonStr)
+                          .toString();
     }
 }

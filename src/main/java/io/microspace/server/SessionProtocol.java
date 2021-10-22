@@ -23,16 +23,17 @@
  */
 package io.microspace.server;
 
-import com.google.common.base.Ascii;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Objects.requireNonNull;
 
-import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static java.util.Objects.requireNonNull;
+import javax.annotation.Nullable;
+
+import com.google.common.base.Ascii;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 /**
  * @author i1619kHz
@@ -81,18 +82,6 @@ public enum SessionProtocol implements Comparable<SessionProtocol> {
         uriTextToProtocols = builder.build();
     }
 
-    private final String uriText;
-    private final boolean useTls;
-    private final boolean isMultiplex;
-    private final int defaultPort;
-
-    SessionProtocol(String uriText, boolean useTls, boolean isMultiplex, int defaultPort) {
-        this.uriText = uriText;
-        this.useTls = useTls;
-        this.isMultiplex = isMultiplex;
-        this.defaultPort = defaultPort;
-    }
-
     /**
      * Returns the {@link SessionProtocol} with the specified {@link #uriText()}.
      *
@@ -132,6 +121,18 @@ public enum SessionProtocol implements Comparable<SessionProtocol> {
      */
     public static Set<SessionProtocol> httpsValues() {
         return HTTPS_VALUES;
+    }
+
+    private final String uriText;
+    private final boolean useTls;
+    private final boolean isMultiplex;
+    private final int defaultPort;
+
+    SessionProtocol(String uriText, boolean useTls, boolean isMultiplex, int defaultPort) {
+        this.uriText = uriText;
+        this.useTls = useTls;
+        this.isMultiplex = isMultiplex;
+        this.defaultPort = defaultPort;
     }
 
     /**

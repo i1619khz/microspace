@@ -23,14 +23,14 @@
  */
 package io.microspace.server;
 
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+
 import io.micrometer.core.instrument.MeterRegistry;
 import io.microspace.context.banner.Banner;
 import io.microspace.server.annotation.ExceptionHandlerFunction;
 import io.netty.channel.ChannelOption;
-
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
 
 /**
  * @author i1619kHz
@@ -41,14 +41,11 @@ public final class ServerConfig {
     private final Map<ChannelOption<?>, Object> childChannelOptions;
     private final ExecutorService startStopExecutor;
     private final Banner banner;
-    private final Map<String, ServiceWrap> serviceWraps;
     private final Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices;
-
     private final boolean useSsl;
     private final boolean useEpoll;
     private final boolean useSession;
     private final boolean shutdownWorkerGroupOnStop;
-
     private final String bannerText;
     private final String bannerFont;
     private final String sessionKey;
@@ -57,7 +54,6 @@ public final class ServerConfig {
     private final String serverThreadName;
     private final String profiles;
     private final List<ServerPort> ports;
-
     private final int maxNumConnections;
     private final int http2InitialConnectionWindowSize;
     private final int http2InitialStreamWindowSize;
@@ -65,40 +61,37 @@ public final class ServerConfig {
     private final int http1MaxInitialLineLength;
     private final int http1MaxHeaderSize;
     private final int http1MaxChunkSize;
-
     private final int acceptThreadCount;
     private final int ioThreadCount;
     private final int serverRestartCount;
-
     private final long idleTimeoutMillis;
     private final long pingIntervalMillis;
     private final long maxConnectionAgeMillis;
     private final long http2MaxHeaderListSize;
     private final long http2MaxStreamsPerConnection;
-
     private final long stopQuietPeriod;
     private final long stopTimeout;
-
-    private final String sslCert;
-    private final String sslPrivateKey;
-    private final String sslPrivateKeyPass;
-
     private final Class<?> bootCls;
     private final String[] args;
+    private final List<ServiceConfig> serviceConfigs;
 
-    ServerConfig(Map<String, ServiceWrap> serviceWraps, Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices,
+    ServerConfig(List<ServiceConfig> serviceConfigs,
+                 Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices,
                  MeterRegistry meterRegistry, Class<?> bootCls, String[] args, Banner banner,
-                 Map<ChannelOption<?>, Object> channelOptions, Map<ChannelOption<?>, Object> childChannelOptions,
-                 boolean useSsl, boolean useEpoll, boolean shutdownWorkerGroupOnStop, ExecutorService startStopExecutor, String bannerText,
-                 String bannerFont, String sessionKey, String viewSuffix, String templateFolder,
-                 String serverThreadName, String profiles, boolean useSession, List<ServerPort> ports,
+                 Map<ChannelOption<?>, Object> channelOptions,
+                 Map<ChannelOption<?>, Object> childChannelOptions,
+                 boolean useSsl, boolean useEpoll, boolean shutdownWorkerGroupOnStop,
+                 ExecutorService startStopExecutor,
+                 String bannerText, String bannerFont, String sessionKey, String viewSuffix,
+                 String templateFolder, String serverThreadName, String profiles,
+                 boolean useSession, List<ServerPort> ports,
                  int maxNumConnections, int http2InitialConnectionWindowSize, int http2InitialStreamWindowSize,
                  int http2MaxFrameSize, int http1MaxInitialLineLength, int http1MaxHeaderSize,
                  int http1MaxChunkSize, long idleTimeoutMillis, long pingIntervalMillis,
                  long maxConnectionAgeMillis, long http2MaxHeaderListSize, long http2MaxStreamsPerConnection,
-                 int acceptThreadCount, int ioThreadCount, int serverRestartCount, String sslCert, String sslPrivateKey,
-                 String sslPrivateKeyPass, long stopQuietPeriod, long stopTimeout) {
-        this.serviceWraps = serviceWraps;
+                 int acceptThreadCount, int ioThreadCount, int serverRestartCount, long stopQuietPeriod,
+                 long stopTimeout) {
+        this.serviceConfigs = serviceConfigs;
         this.exceptionServices = exceptionServices;
         this.meterRegistry = meterRegistry;
         this.bootCls = bootCls;
@@ -134,9 +127,6 @@ public final class ServerConfig {
         this.acceptThreadCount = acceptThreadCount;
         this.ioThreadCount = ioThreadCount;
         this.serverRestartCount = serverRestartCount;
-        this.sslCert = sslCert;
-        this.sslPrivateKey = sslPrivateKey;
-        this.sslPrivateKeyPass = sslPrivateKeyPass;
         this.stopQuietPeriod = stopQuietPeriod;
         this.stopTimeout = stopTimeout;
     }
@@ -257,18 +247,6 @@ public final class ServerConfig {
         return ioThreadCount;
     }
 
-    public String sslCert() {
-        return sslCert;
-    }
-
-    public String sslPrivateKey() {
-        return sslPrivateKey;
-    }
-
-    public String sslPrivateKeyPass() {
-        return sslPrivateKeyPass;
-    }
-
     public Banner banner() {
         return banner;
     }
@@ -285,10 +263,6 @@ public final class ServerConfig {
         return meterRegistry;
     }
 
-    public Map<String, ServiceWrap> serviceWraps() {
-        return serviceWraps;
-    }
-
     public long stopQuietPeriod() {
         return stopQuietPeriod;
     }
@@ -299,6 +273,10 @@ public final class ServerConfig {
 
     public Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices() {
         return exceptionServices;
+    }
+
+    public List<ServiceConfig> serviceConfigs() {
+        return serviceConfigs;
     }
 
     public boolean shutdownWorkerGroupOnStop() {

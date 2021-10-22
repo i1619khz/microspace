@@ -39,7 +39,9 @@ public class ServerStartupException extends RuntimeException {
         super(cause);
     }
 
-    public ServerStartupException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
+    public ServerStartupException(String message, Throwable cause,
+                                  boolean enableSuppression,
+                                  boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }
 }
