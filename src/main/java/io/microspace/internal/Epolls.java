@@ -37,20 +37,18 @@ public final class Epolls {
             //noinspection unchecked
             EPOLL_EVENT_LOOP_CLASS = (Class<? extends EventLoopGroup>)
                     Class.forName("io.netty.channel.epoll.EpollEventLoop", false,
-                            EpollEventLoopGroup.class.getClassLoader());
+                                  EpollEventLoopGroup.class.getClassLoader());
         } catch (Exception e) {
             throw new IllegalStateException("failed to locate EpollEventLoop class", e);
         }
     }
 
-    private Epolls() {/* no thing */}
-
     public static boolean epollIsAvailable() {
         try {
             Object obj = Class.forName("io.netty.channel.epoll.Epoll")
-                    .getMethod("isAvailable").invoke(null);
+                              .getMethod("isAvailable").invoke(null);
             return null != obj && Boolean.parseBoolean(obj.toString())
-                    && System.getProperty("os.name").toLowerCase().contains("linux");
+                   && System.getProperty("os.name").toLowerCase().contains("linux");
         } catch (Exception e) {
             return false;
         }
@@ -59,4 +57,6 @@ public final class Epolls {
     public static Class<? extends EventLoopGroup> epollEventLoopClass() {
         return EPOLL_EVENT_LOOP_CLASS;
     }
+
+    private Epolls() {/* nothing */}
 }

@@ -23,11 +23,11 @@
  */
 package io.microspace.context.scheduler;
 
+import static java.util.Objects.requireNonNull;
+
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * @author i1619kHz

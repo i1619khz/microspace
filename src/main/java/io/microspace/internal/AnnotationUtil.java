@@ -23,14 +23,12 @@
  */
 package io.microspace.internal;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableList.Builder;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.MapMaker;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.google.common.collect.ImmutableList.toImmutableList;
+import static java.util.Objects.requireNonNull;
+import static org.reflections8.ReflectionUtils.getMethods;
+import static org.reflections8.ReflectionUtils.withName;
+import static org.reflections8.ReflectionUtils.withParametersCount;
 
-import javax.annotation.Nullable;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Repeatable;
@@ -46,11 +44,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static com.google.common.collect.ImmutableList.toImmutableList;
-import static java.util.Objects.requireNonNull;
-import static org.reflections8.ReflectionUtils.getMethods;
-import static org.reflections8.ReflectionUtils.withName;
-import static org.reflections8.ReflectionUtils.withParametersCount;
+import javax.annotation.Nullable;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.MapMaker;
 
 /**
  * A utility class which helps to get annotations from an {@link AnnotatedElement}.
@@ -58,29 +60,6 @@ import static org.reflections8.ReflectionUtils.withParametersCount;
 public final class AnnotationUtil {
 
     private static final Logger logger = LoggerFactory.getLogger(AnnotationUtil.class);
-
-    /**
-     * Options to be used for finding annotations from an {@link AnnotatedElement}.
-     */
-    public enum FindOption {
-        /**
-         * Get annotations from super classes of the given {@link AnnotatedElement} if the element is a
-         * {@link Class}. Otherwise, this option will be ignored.
-         */
-        LOOKUP_SUPER_CLASSES,
-        /**
-         * Get additional annotations from the meta-annotations which annotate the annotations specified
-         * on the given {@link AnnotatedElement}.
-         */
-        LOOKUP_META_ANNOTATIONS,
-        /**
-         * Collect the annotations specified in the super classes first, the annotations specified on the
-         * given {@link AnnotatedElement} will be collected at last. This option will work only with
-         * the {@link #LOOKUP_SUPER_CLASSES}.
-         */
-        COLLECT_SUPER_CLASSES_FIRST
-    }
-
     /**
      * A thread-local hash set of annotation classes that contain cyclic references.
      */
@@ -144,7 +123,7 @@ public final class AnnotationUtil {
      */
     public static <T extends Annotation> List<T> findAll(AnnotatedElement element, Class<T> annotationType) {
         return find(element, annotationType, EnumSet.of(FindOption.LOOKUP_SUPER_CLASSES,
-                FindOption.LOOKUP_META_ANNOTATIONS));
+                                                        FindOption.LOOKUP_META_ANNOTATIONS));
     }
 
     /**
@@ -224,39 +203,6 @@ public final class AnnotationUtil {
         return builder.build();
     }
 
-    private static <T extends Annotation> void findMetaAnnotations(
-            Builder<T> builder, Annotation annotation,
-            Class<T> annotationType, @Nullable Class<? extends Annotation> containerType) {
-        findMetaAnnotations(builder, annotation, annotationType, containerType,
-                Collections.newSetFromMap(new IdentityHashMap<>()));
-    }
-
-    private static <T extends Annotation> boolean findMetaAnnotations(
-            Builder<T> builder, Annotation annotation,
-            Class<T> annotationType, @Nullable Class<? extends Annotation> containerType,
-            Set<Class<? extends Annotation>> visitedAnnotationTypes) {
-
-        final Class<? extends Annotation> actualAnnotationType = annotation.annotationType();
-        if (knownCyclicAnnotationTypes.contains(actualAnnotationType)) {
-            return false;
-        }
-        if (!visitedAnnotationTypes.add(actualAnnotationType)) {
-            blacklistAnnotation(actualAnnotationType);
-            return false;
-        }
-
-        final Annotation[] metaAnnotations = annotation.annotationType().getDeclaredAnnotations();
-        for (final Annotation metaAnnotation : metaAnnotations) {
-            if (findMetaAnnotations(builder, metaAnnotation, annotationType, containerType,
-                    visitedAnnotationTypes)) {
-                collectAnnotations(builder, metaAnnotation, annotationType, containerType);
-            }
-        }
-
-        visitedAnnotationTypes.remove(actualAnnotationType);
-        return true;
-    }
-
     /**
      * Returns all annotations which are found from the following.
      * <ul>
@@ -270,7 +216,7 @@ public final class AnnotationUtil {
      */
     public static List<Annotation> getAllAnnotations(AnnotatedElement element) {
         return getAnnotations(element, EnumSet.of(FindOption.LOOKUP_SUPER_CLASSES,
-                FindOption.LOOKUP_META_ANNOTATIONS));
+                                                  FindOption.LOOKUP_META_ANNOTATIONS));
     }
 
     /**
@@ -283,8 +229,8 @@ public final class AnnotationUtil {
     public static List<Annotation> getAnnotations(AnnotatedElement element, FindOption... findOptions) {
         requireNonNull(findOptions, "findOptions");
         return getAnnotations(element,
-                findOptions.length > 0 ? EnumSet.copyOf(ImmutableList.copyOf(findOptions))
-                        : EnumSet.noneOf(FindOption.class));
+                              findOptions.length > 0 ? EnumSet.copyOf(ImmutableList.copyOf(findOptions))
+                                                     : EnumSet.noneOf(FindOption.class));
     }
 
     /**
@@ -327,10 +273,45 @@ public final class AnnotationUtil {
         return builder.build();
     }
 
+    private AnnotationUtil() {}
+
+    private static <T extends Annotation> void findMetaAnnotations(
+            Builder<T> builder, Annotation annotation,
+            Class<T> annotationType, @Nullable Class<? extends Annotation> containerType) {
+        findMetaAnnotations(builder, annotation, annotationType, containerType,
+                            Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    private static <T extends Annotation> boolean findMetaAnnotations(
+            Builder<T> builder, Annotation annotation,
+            Class<T> annotationType, @Nullable Class<? extends Annotation> containerType,
+            Set<Class<? extends Annotation>> visitedAnnotationTypes) {
+
+        final Class<? extends Annotation> actualAnnotationType = annotation.annotationType();
+        if (knownCyclicAnnotationTypes.contains(actualAnnotationType)) {
+            return false;
+        }
+        if (!visitedAnnotationTypes.add(actualAnnotationType)) {
+            blacklistAnnotation(actualAnnotationType);
+            return false;
+        }
+
+        final Annotation[] metaAnnotations = annotation.annotationType().getDeclaredAnnotations();
+        for (final Annotation metaAnnotation : metaAnnotations) {
+            if (findMetaAnnotations(builder, metaAnnotation, annotationType, containerType,
+                                    visitedAnnotationTypes)) {
+                collectAnnotations(builder, metaAnnotation, annotationType, containerType);
+            }
+        }
+
+        visitedAnnotationTypes.remove(actualAnnotationType);
+        return true;
+    }
+
     private static void getMetaAnnotations(Builder<Annotation> builder, Annotation annotation,
                                            Predicate<Annotation> collectingFilter) {
         getMetaAnnotations(builder, annotation, collectingFilter,
-                Collections.newSetFromMap(new IdentityHashMap<>()));
+                           Collections.newSetFromMap(new IdentityHashMap<>()));
     }
 
     private static boolean getMetaAnnotations(Builder<Annotation> builder, Annotation annotation,
@@ -351,8 +332,8 @@ public final class AnnotationUtil {
         for (final Annotation metaAnnotation : metaAnnotations) {
 
             if (getMetaAnnotations(builder, metaAnnotation, collectingFilter,
-                    visitedAnnotationTypes) &&
-                    collectingFilter.test(metaAnnotation)) {
+                                   visitedAnnotationTypes) &&
+                collectingFilter.test(metaAnnotation)) {
                 builder.add(metaAnnotation);
             }
         }
@@ -372,9 +353,9 @@ public final class AnnotationUtil {
             final List<String> ifaceNames;
             if (ifaces.length != 0) {
                 ifaceNames = Arrays.stream(ifaces)
-                        .filter(Class::isAnnotation)
-                        .map(Class::getName)
-                        .collect(toImmutableList());
+                                   .filter(Class::isAnnotation)
+                                   .map(Class::getName)
+                                   .collect(toImmutableList());
             } else {
                 ifaceNames = ImmutableList.of();
             }
@@ -396,12 +377,12 @@ public final class AnnotationUtil {
         if (findOptions.contains(FindOption.LOOKUP_SUPER_CLASSES) && element instanceof Class) {
             final Class<?> superclass = ((Class<?>) element).getSuperclass();
             if ((superclass == null || superclass == Object.class) &&
-                    ((Class<?>) element).getInterfaces().length == 0) {
+                ((Class<?>) element).getInterfaces().length == 0) {
                 elements = ImmutableList.of(element);
             } else {
                 final Builder<AnnotatedElement> collector = new Builder<>();
                 collectSuperClasses((Class<?>) element, collector,
-                        findOptions.contains(FindOption.COLLECT_SUPER_CLASSES_FIRST));
+                                    findOptions.contains(FindOption.COLLECT_SUPER_CLASSES_FIRST));
                 elements = collector.build();
             }
         } else {
@@ -420,8 +401,8 @@ public final class AnnotationUtil {
         }
         if (superInterfaces.length > 0) {
             Arrays.stream(superInterfaces)
-                    .forEach(superInterface -> collectSuperClasses(
-                            superInterface, collector, collectSuperClassesFirst));
+                  .forEach(superInterface -> collectSuperClasses(
+                          superInterface, collector, collectSuperClassesFirst));
         }
         if (superClass != null && superClass != Object.class) {
             collectSuperClasses(superClass, collector, collectSuperClassesFirst);
@@ -455,14 +436,35 @@ public final class AnnotationUtil {
         method.setAccessible(true);
 
         try {
-            @SuppressWarnings("unchecked") final T[] values = (T[]) method.invoke(annotation);
+            @SuppressWarnings("unchecked")
+            final T[] values = (T[]) method.invoke(annotation);
             Arrays.stream(values).forEach(builder::add);
         } catch (Exception e) {
             // Should not reach here.
             throw new java.lang.Error("Failed to invoke 'value' method of the repeatable annotation: " +
-                    containerType.getName(), e);
+                                      containerType.getName(), e);
         }
     }
 
-    private AnnotationUtil() {}
+    /**
+     * Options to be used for finding annotations from an {@link AnnotatedElement}.
+     */
+    public enum FindOption {
+        /**
+         * Get annotations from super classes of the given {@link AnnotatedElement} if the element is a
+         * {@link Class}. Otherwise, this option will be ignored.
+         */
+        LOOKUP_SUPER_CLASSES,
+        /**
+         * Get additional annotations from the meta-annotations which annotate the annotations specified
+         * on the given {@link AnnotatedElement}.
+         */
+        LOOKUP_META_ANNOTATIONS,
+        /**
+         * Collect the annotations specified in the super classes first, the annotations specified on the
+         * given {@link AnnotatedElement} will be collected at last. This option will work only with
+         * the {@link #LOOKUP_SUPER_CLASSES}.
+         */
+        COLLECT_SUPER_CLASSES_FIRST
+    }
 }

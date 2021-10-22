@@ -23,20 +23,21 @@
  */
 package io.microspace.context.scheduler;
 
+import static java.util.Objects.requireNonNull;
+
 import java.io.Serializable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import static java.util.Objects.requireNonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author i1619kHz
  */
 final class GuardedScheduler implements Scheduler, Serializable {
-    static final Logger logger = Logger.getLogger(GuardedScheduler.class.getName());
+    static final Logger logger = LoggerFactory.getLogger(GuardedScheduler.class.getName());
     static final long serialVersionUID = 1;
 
     final Scheduler delegate;
@@ -51,7 +52,7 @@ final class GuardedScheduler implements Scheduler, Serializable {
             Future<?> future = delegate.schedule(executor, command, delay, unit);
             return (future == null) ? DisabledFuture.INSTANCE : future;
         } catch (Throwable t) {
-            logger.log(Level.WARNING, "Exception thrown by scheduler; discarded task", t);
+            logger.warn("Exception thrown by scheduler; discarded task", t);
             return DisabledFuture.INSTANCE;
         }
     }

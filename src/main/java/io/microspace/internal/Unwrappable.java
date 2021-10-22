@@ -23,9 +23,9 @@
  */
 package io.microspace.internal;
 
-import javax.annotation.Nullable;
-
 import static java.util.Objects.requireNonNull;
+
+import javax.annotation.Nullable;
 
 /**
  * @author i1619kHz

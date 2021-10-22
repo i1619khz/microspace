@@ -23,21 +23,22 @@
  */
 package io.microspace.context.scheduler;
 
+import static java.util.Objects.requireNonNull;
+
 import java.io.Serializable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import static java.util.Objects.requireNonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author i1619kHz
  */
 final class ExecutorServiceScheduler implements Scheduler, Serializable {
-    static final Logger logger = Logger.getLogger(ExecutorServiceScheduler.class.getName());
+    static final Logger logger = LoggerFactory.getLogger(ExecutorServiceScheduler.class.getName());
     static final long serialVersionUID = 1;
 
     final ScheduledExecutorService scheduledExecutorService;
@@ -59,7 +60,7 @@ final class ExecutorServiceScheduler implements Scheduler, Serializable {
             try {
                 executor.execute(command);
             } catch (Throwable t) {
-                logger.log(Level.WARNING, "Exception thrown when submitting scheduled task", t);
+                logger.warn("Exception thrown when submitting scheduled task", t);
                 throw t;
             }
         }, delay, unit);

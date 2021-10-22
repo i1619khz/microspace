@@ -34,19 +34,13 @@ import java.util.Objects;
 public abstract class AnsiOutput {
     private static final String ENCODE_JOIN = ";";
     private static final String OPERATING_SYSTEM_NAME = System.getProperty("os.name")
-            .toLowerCase(Locale.ENGLISH);
+                                                              .toLowerCase(Locale.ENGLISH);
     private static final String ENCODE_START = "\033[";
     private static final String ENCODE_END = "m";
     private static final String RESET = AnsiColor.RESET.toString();
     private static Enabled enabled = Enabled.ALWAYS;
     private static Boolean consoleAvailable;
     private static Boolean ansiCapable;
-
-    private static void notNull(Object object, String message) {
-        if (object == null) {
-            throw new IllegalArgumentException(message);
-        }
-    }
 
     /**
      * Sets if the System.console() is known to be available.
@@ -56,10 +50,6 @@ public abstract class AnsiOutput {
      */
     public static void setConsoleAvailable(Boolean consoleAvailable) {
         AnsiOutput.consoleAvailable = consoleAvailable;
-    }
-
-    static Enabled getEnabled() {
-        return AnsiOutput.enabled;
     }
 
     /**
@@ -90,6 +80,16 @@ public abstract class AnsiOutput {
             buildDisabled(sb, elements);
         }
         return sb.toString();
+    }
+
+    private static void notNull(Object object, String message) {
+        if (object == null) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    static Enabled getEnabled() {
+        return AnsiOutput.enabled;
     }
 
     private static void buildEnabled(StringBuilder sb, Object[] elements) {

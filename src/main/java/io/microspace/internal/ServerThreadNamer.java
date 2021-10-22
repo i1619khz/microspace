@@ -23,10 +23,10 @@
  */
 package io.microspace.internal;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.LongAdder;
-
-import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * @author i1619kHz

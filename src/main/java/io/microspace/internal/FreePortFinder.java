@@ -57,13 +57,6 @@ public final class FreePortFinder {
      */
     private static final AtomicInteger currentMinPort = new AtomicInteger(MIN_PORT_NUMBER);
 
-    /**
-     * Creates a new instance.
-     */
-    private FreePortFinder() {
-        // Do nothing
-    }
-
     static {
         int port = MIN_PORT_NUMBER;
         ServerSocket ss = null;
@@ -230,5 +223,12 @@ public final class FreePortFinder {
 
         return false;
 
+    }
+
+    /**
+     * Creates a new instance.
+     */
+    private FreePortFinder() {
+        // Do nothing
     }
 }

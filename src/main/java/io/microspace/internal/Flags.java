@@ -23,11 +23,23 @@
  */
 package io.microspace.internal;
 
+import java.util.Map;
+import java.util.regex.Pattern;
+
+import com.google.common.collect.ImmutableMap;
+
 import io.microspace.context.banner.BannerFont;
+import io.microspace.server.HttpMethod;
 import io.microspace.server.ServerPort;
 import io.microspace.server.SessionProtocol;
-
-import java.util.regex.Pattern;
+import io.microspace.server.annotation.Delete;
+import io.microspace.server.annotation.Get;
+import io.microspace.server.annotation.Head;
+import io.microspace.server.annotation.Options;
+import io.microspace.server.annotation.Patch;
+import io.microspace.server.annotation.Post;
+import io.microspace.server.annotation.Put;
+import io.microspace.server.annotation.Trace;
 
 /**
  * @author i1619kHz
@@ -50,6 +62,9 @@ public final class Flags {
     private static final long DEFAULT_MAX_CONNECTION_AGE_MILLIS = 0;
     private static final long DEFAULT_HTTP2_MAX_HEADER_LIST_SIZE = 0;
     private static final long DEFAULT_HTTP2_MAX_STREAMS_PER_CONNECTION = 0;
+    private static final long STOP_QUIET_PERIOD = 2L;
+    private static final long STOP_TIMEOUT = 15L;
+    private static final boolean SHUTDOWN_WORKER_GROUP_ON_STOP = true;
 
     private static final String MICROSPACE_FRAMEWORK = " :: Microspace Framework :: ";
     private static final String SERVER_THREAD_NAME = "（'-'*)";
@@ -72,7 +87,26 @@ public final class Flags {
     private static final int MAX_CONNECTION_COUNT = DEFAULT_MAX_CONNECTION_COUNT;
     private static final int ACCEPT_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
     private static final int IO_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 2;
-    private static final ServerPort DEFAULT_SERVER_PORT = new ServerPort(Flags.defaultPort(), SessionProtocol.HTTP);
+    private static final ServerPort DEFAULT_SERVER_PORT = new ServerPort(Flags.defaultPort(),
+                                                                         SessionProtocol.HTTP);
+    /**
+     * Mapping from HTTP method annotation to {@link HttpMethod}, like following.
+     */
+     public static final Map<Class<?>, HttpMethod> HTTP_METHOD_MAP =
+            ImmutableMap.<Class<?>, HttpMethod>builder()
+                        .put(Options.class, HttpMethod.OPTIONS)
+                        .put(Get.class, HttpMethod.GET)
+                        .put(Head.class, HttpMethod.HEAD)
+                        .put(Post.class, HttpMethod.POST)
+                        .put(Put.class, HttpMethod.PUT)
+                        .put(Patch.class, HttpMethod.PATCH)
+                        .put(Delete.class, HttpMethod.DELETE)
+                        .put(Trace.class, HttpMethod.TRACE)
+                        .build();
+
+    public static boolean checkPort(int serverPort) {
+        return serverPort > 0 && serverPort <= 65533;
+    }
 
     public static ServerPort defaultServerPort() {
         return DEFAULT_SERVER_PORT;
@@ -86,23 +120,23 @@ public final class Flags {
         return YML_REGEX;
     }
 
-    public static String bannerText() {
+    public static String defaultBannerText() {
         return BANNER_TEXT;
     }
 
-    public static String bannerFont() {
+    public static String defaultBannerFont() {
         return BANNER_FONT;
     }
 
-    public static String sessionKey() {
+    public static String defaultSessionKey() {
         return SESSION_KEY;
     }
 
-    public static String viewSuffix() {
+    public static String defaultViewSuffix() {
         return VIEW_SUFFIX;
     }
 
-    public static String templateFolder() {
+    public static String defaultTemplateFolder() {
         return TEMPLATE_FOLDER;
     }
 
@@ -110,7 +144,7 @@ public final class Flags {
         return MICROSPACE_FRAMEWORK;
     }
 
-    public static String serverThreadName() {
+    public static String defaultServerThreadName() {
         return SERVER_THREAD_NAME;
     }
 
@@ -134,67 +168,83 @@ public final class Flags {
         return USE_EPOLL;
     }
 
-    public static int maxNumConnections() {
+    public static int defaultMaxNumConnections() {
         return MAX_CONNECTION_COUNT;
     }
 
-    public static int http2InitialConnectionWindowSize() {
+    public static int defaultHttp2InitialConnectionWindowSize() {
         return 0;
     }
 
-    public static int http2InitialStreamWindowSize() {
+    public static int defaultHttp2InitialStreamWindowSize() {
         return 0;
     }
 
-    public static int http2MaxFrameSize() {
+    public static int defaultHttp2MaxFrameSize() {
         return 0;
     }
 
-    public static int http1MaxInitialLineLength() {
+    public static int defaultHttp1MaxInitialLineLength() {
         return 0;
     }
 
-    public static int http1MaxHeaderSize() {
+    public static int defaultHttp1MaxHeaderSize() {
         return 0;
     }
 
-    public static int http1MaxChunkSize() {
+    public static int defaultHttp1MaxChunkSize() {
         return 0;
     }
 
-    public static long idleTimeoutMillis() {
+    public static long defaultIdleTimeoutMillis() {
         return 0;
     }
 
-    public static long pingIntervalMillis() {
+    public static long defaultPingIntervalMillis() {
         return 0;
     }
 
-    public static long maxConnectionAgeMillis() {
+    public static long defaultMaxConnectionAgeMillis() {
         return 0;
     }
 
-    public static long http2MaxHeaderListSize() {
+    public static long defaultHttp2MaxHeaderListSize() {
         return 0;
     }
 
-    public static long http2MaxStreamsPerConnection() {
+    public static long defaultHttp2MaxStreamsPerConnection() {
         return 0;
     }
 
-    public static int acceptThreadCount() {
+    public static int defaultAcceptThreadCount() {
         return ACCEPT_THREAD_COUNT;
     }
 
-    public static int ioThreadCount() {
+    public static int defaultIoThreadCount() {
         return IO_THREAD_COUNT;
     }
 
-    public static int serverRestartCount() {
+    public static int defaultServerRestartCount() {
         return 3;
     }
 
     public static String httpUrlPrefix() {
         return HTTP_URL_PREFIX;
+    }
+
+    public static long defaultStopQuietPeriod() {
+        return STOP_QUIET_PERIOD;
+    }
+
+    public static long defaultStopTimeout() {
+        return STOP_TIMEOUT;
+    }
+
+    public static boolean defaultShutdownWorkerGroupOnStop() {
+        return SHUTDOWN_WORKER_GROUP_ON_STOP;
+    }
+
+    public static boolean validateHeaders() {
+        return true;
     }
 }

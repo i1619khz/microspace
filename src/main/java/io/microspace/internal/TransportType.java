@@ -23,8 +23,16 @@
  */
 package io.microspace.internal;
 
+import java.util.Set;
+import java.util.concurrent.ThreadFactory;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+import javax.annotation.Nullable;
+
 import com.google.common.base.Ascii;
 import com.google.common.collect.ImmutableSet;
+
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
@@ -40,41 +48,16 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
-import javax.annotation.Nullable;
-import java.util.Set;
-import java.util.concurrent.ThreadFactory;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-
 /**
  * Native transport types.
  */
 public enum TransportType {
 
     NIO(NioServerSocketChannel.class, NioSocketChannel.class, NioDatagramChannel.class,
-            NioEventLoopGroup::new, NioEventLoopGroup.class, NioEventLoop.class),
+        NioEventLoopGroup::new, NioEventLoopGroup.class, NioEventLoop.class),
 
     EPOLL(EpollServerSocketChannel.class, EpollSocketChannel.class, EpollDatagramChannel.class,
-            EpollEventLoopGroup::new, EpollEventLoopGroup.class, Epolls.epollEventLoopClass());
-
-    private final Class<? extends ServerChannel> serverChannelType;
-    private final Class<? extends SocketChannel> socketChannelType;
-    private final Class<? extends DatagramChannel> datagramChannelType;
-    private final Set<Class<? extends EventLoopGroup>> eventLoopGroupClasses;
-    private final BiFunction<Integer, ThreadFactory, ? extends EventLoopGroup> eventLoopGroupConstructor;
-
-    @SafeVarargs
-    TransportType(Class<? extends ServerChannel> serverChannelType,
-                  Class<? extends SocketChannel> socketChannelType,
-                  Class<? extends DatagramChannel> datagramChannelType,
-                  BiFunction<Integer, ThreadFactory, ? extends EventLoopGroup> eventLoopGroupConstructor,
-                  Class<? extends EventLoopGroup>... eventLoopGroupClasses) {
-        this.serverChannelType = serverChannelType;
-        this.socketChannelType = socketChannelType;
-        this.datagramChannelType = datagramChannelType;
-        this.eventLoopGroupClasses = ImmutableSet.copyOf(eventLoopGroupClasses);
-        this.eventLoopGroupConstructor = eventLoopGroupConstructor;
-    }
+          EpollEventLoopGroup::new, EpollEventLoopGroup.class, Epolls.epollEventLoopClass());
 
     /**
      * Returns the available {@link TransportType}.
@@ -126,6 +109,25 @@ public enum TransportType {
         return findOrNull(eventLoopGroup) != null;
     }
 
+    private final Class<? extends ServerChannel> serverChannelType;
+    private final Class<? extends SocketChannel> socketChannelType;
+    private final Class<? extends DatagramChannel> datagramChannelType;
+    private final Set<Class<? extends EventLoopGroup>> eventLoopGroupClasses;
+    private final BiFunction<Integer, ThreadFactory, ? extends EventLoopGroup> eventLoopGroupConstructor;
+
+    @SafeVarargs
+    TransportType(Class<? extends ServerChannel> serverChannelType,
+                  Class<? extends SocketChannel> socketChannelType,
+                  Class<? extends DatagramChannel> datagramChannelType,
+                  BiFunction<Integer, ThreadFactory, ? extends EventLoopGroup> eventLoopGroupConstructor,
+                  Class<? extends EventLoopGroup>... eventLoopGroupClasses) {
+        this.serverChannelType = serverChannelType;
+        this.socketChannelType = socketChannelType;
+        this.datagramChannelType = datagramChannelType;
+        this.eventLoopGroupClasses = ImmutableSet.copyOf(eventLoopGroupClasses);
+        this.eventLoopGroupConstructor = eventLoopGroupConstructor;
+    }
+
     private static TransportType find(EventLoopGroup eventLoopGroup) {
         final TransportType found = findOrNull(eventLoopGroup);
         if (found == null) {
@@ -148,7 +150,7 @@ public enum TransportType {
 
     private static IllegalStateException unsupportedEventLoopType(EventLoopGroup eventLoopGroup) {
         return new IllegalStateException("unsupported event loop type: " +
-                eventLoopGroup.getClass().getName());
+                                         eventLoopGroup.getClass().getName());
     }
 
     /**
@@ -172,7 +174,8 @@ public enum TransportType {
     /**
      * Creates the available {@link EventLoopGroup}.
      */
-    public EventLoopGroup newEventLoopGroup(int nThreads, Function<TransportType, ThreadFactory> threadFactoryFactory) {
+    public EventLoopGroup newEventLoopGroup(int nThreads,
+                                            Function<TransportType, ThreadFactory> threadFactoryFactory) {
         final ThreadFactory threadFactory = threadFactoryFactory.apply(this);
         return eventLoopGroupConstructor.apply(nThreads, threadFactory);
     }

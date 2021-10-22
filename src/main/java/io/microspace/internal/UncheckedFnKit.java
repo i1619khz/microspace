@@ -30,11 +30,6 @@ import java.util.function.Function;
  */
 public class UncheckedFnKit {
 
-    @FunctionalInterface
-    public interface FunctionWithExceptions<T, R, E extends Throwable> {
-        R apply(T t) throws E;
-    }
-
     public static <T, R> Function<T, R> wrap(FunctionWithExceptions<T, R, Throwable> function) {
         return t -> {
             try {
@@ -43,5 +38,10 @@ public class UncheckedFnKit {
                 throw new RuntimeException(throwable);
             }
         };
+    }
+
+    @FunctionalInterface
+    public interface FunctionWithExceptions<T, R, E extends Throwable> {
+        R apply(T t) throws E;
     }
 }

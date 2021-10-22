@@ -30,7 +30,7 @@ import io.microspace.context.ansi.AnsiOutput;
 /**
  * @author i1619kHz
  */
-public class DefaultApplicationBanner extends AbstractBanner {
+public class MicrospaceBanner extends AbstractBanner {
     private final String MICRO_SPACE_VERSION = "(v1.0.0 RELEASE)";
     private final String MICRO_SPACE_FRAMEWORK = ":: microspace framework ::";
 
@@ -42,7 +42,8 @@ public class DefaultApplicationBanner extends AbstractBanner {
     @Override
     public String setUpPadding(Integer strapLineSize) {
         final StringBuilder padding = new StringBuilder();
-        while (padding.length() < strapLineSize - (MICRO_SPACE_VERSION.length() + MICRO_SPACE_FRAMEWORK.length())) {
+        while (padding.length() < strapLineSize - (MICRO_SPACE_VERSION.length()
+                                                   + MICRO_SPACE_FRAMEWORK.length())) {
             padding.append(" ");
         }
         return padding.toString();
@@ -51,7 +52,7 @@ public class DefaultApplicationBanner extends AbstractBanner {
     @Override
     public void printTextAndVersion(String padding) {
         System.out.println(AnsiOutput.toString(AnsiColor.GREEN, MICRO_SPACE_FRAMEWORK,
-                AnsiColor.RESET, padding, MICRO_SPACE_VERSION));
+                                               AnsiColor.RESET, padding, MICRO_SPACE_VERSION));
         System.out.println();
     }
 }
