@@ -33,8 +33,6 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Documented
-@Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Controller {
-    String value() default "";
-}
+@Target({ElementType.TYPE, ElementType.METHOD})
+public @interface RateLimiting {}

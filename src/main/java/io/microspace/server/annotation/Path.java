@@ -23,13 +23,13 @@
  */
 package io.microspace.server.annotation;
 
-import io.microspace.server.HttpMethod;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import io.microspace.server.HttpMethod;
 
 /**
  * @author i1619kHz

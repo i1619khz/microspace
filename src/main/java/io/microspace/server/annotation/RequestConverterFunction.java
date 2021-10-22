@@ -23,17 +23,16 @@
  */
 package io.microspace.server.annotation;
 
-import io.microspace.server.Request;
-import io.microspace.server.Response;
+import java.lang.reflect.ParameterizedType;
+
+import javax.annotation.Nullable;
 
 /**
  * @author i1619kHz
  */
 @FunctionalInterface
-public interface ExceptionHandlerFunction {
-    void handle(Request request, Response response, Throwable throwable);
-
-    class EmptyExceptionHandlerFunction implements ExceptionHandlerFunction {
-        public void handle(Request request, Response response, Throwable throwable) {/* nothing */}
-    }
+public interface RequestConverterFunction {
+    @Nullable
+    Object convertRequest(Class<?> expectedResultType,
+                          @Nullable ParameterizedType expectedParameterizedResultType) throws Exception;
 }
