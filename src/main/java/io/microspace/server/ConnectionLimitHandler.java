@@ -23,14 +23,6 @@
  */
 package io.microspace.server;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandler.Sharable;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelOption;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,6 +30,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler.Sharable;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelOption;
 
 /**
  * @author i1619kHz
@@ -90,7 +91,7 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter {
         final long dropped = numDroppedConnections.sumThenReset();
         if (dropped > 0) {
             log.warn("Dropped {} connection(s) to limit the number of open connections to {}",
-                    dropped, maxConnectionNum);
+                     dropped, maxConnectionNum);
         }
     }
 

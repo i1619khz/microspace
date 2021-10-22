@@ -23,37 +23,37 @@
  */
 package io.microspace.server;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
 import com.google.common.base.MoreObjects;
 
 /**
  * @author i1619kHz
  */
-final class ServiceWrap {
-    private final Route route;
-    private final HttpService service;
+final class AnnotatedService implements HttpService {
+    private final Object target;
+    private final Method method;
 
-    static ServiceWrap of(Route route, HttpService service) {
-        return new ServiceWrap(route, service);
+    AnnotatedService(Object target, Method method) {
+        this.target = target;
+        this.method = method;
     }
 
-    private ServiceWrap(Route route, HttpService service) {
-        this.route = route;
-        this.service = service;
-    }
-
-    Route route() {
-        return route;
-    }
-
-    HttpService service() {
-        return service;
+    @Override
+    public void serve(Request request, Response response) {
+        try {
+            Object invoke = method.invoke(target);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("route", route)
-                .add("service", service)
-                .toString();
+                          .add("target", target)
+                          .add("method", method)
+                          .toString();
     }
 }
