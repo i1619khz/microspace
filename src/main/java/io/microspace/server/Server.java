@@ -23,34 +23,8 @@
  */
 package io.microspace.server;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Stopwatch;
-import com.google.common.collect.ImmutableList;
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tag;
-import io.microspace.internal.FreePortFinder;
-import io.microspace.internal.ServerThreadNamer;
-import io.microspace.internal.TransportType;
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ServerChannel;
-import io.netty.handler.codec.http2.Http2SecurityUtil;
-import io.netty.handler.ssl.ApplicationProtocolConfig;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
-import io.netty.handler.ssl.SslProvider;
-import io.netty.handler.ssl.SupportedCipherSuiteFilter;
-import io.netty.handler.ssl.util.SelfSignedCertificate;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GlobalEventExecutor;
-import io.netty.util.concurrent.ImmediateEventExecutor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
+import static java.util.Objects.requireNonNull;
 
 import java.io.File;
 import java.net.BindException;
@@ -71,13 +45,30 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static com.google.common.collect.ImmutableSet.toImmutableSet;
-import static io.netty.handler.ssl.ApplicationProtocolConfig.Protocol.ALPN;
-import static io.netty.handler.ssl.ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT;
-import static io.netty.handler.ssl.ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE;
-import static io.netty.handler.ssl.ApplicationProtocolNames.HTTP_1_1;
-import static io.netty.handler.ssl.ApplicationProtocolNames.HTTP_2;
-import static java.util.Objects.requireNonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Joiner;
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableList;
+
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import io.microspace.internal.FreePortFinder;
+import io.microspace.internal.ServerThreadNamer;
+import io.microspace.internal.TransportType;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.ServerChannel;
+import io.netty.handler.ssl.SslContext;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GlobalEventExecutor;
+import io.netty.util.concurrent.ImmediateEventExecutor;
 
 /**
  * @author i1619kHz
@@ -85,26 +76,31 @@ import static java.util.Objects.requireNonNull;
 public final class Server {
     private static final Logger log = LoggerFactory.getLogger(Server.class);
 
+    public static ServerBuilder builder() {
+        return new ServerBuilder();
+    }
+
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final Set<ServerChannel> serverChannels = new CopyOnWriteArraySet<>();
     private final Map<InetSocketAddress, ServerPort> activePorts = new LinkedHashMap<>();
     private final Stopwatch startupWatch = Stopwatch.createUnstarted();
     private final ExecutorService executorService;
     private final ServerConfig config;
-    private SslContext sslContext;
+    private final SslContext sslContext;
     private EventLoopGroup workerGroup;
     private ConnectionLimitHandler connectionLimitHandler;
 
     Server(ServerConfig config, SslContext sslContext) {
         this.config = config;
         this.sslContext = sslContext;
-        executorService = config.executorService();
+        executorService = config().executorService();
 
         setupMetrics();
     }
 
-    public static ServerBuilder builder() {
-        return new ServerBuilder();
+    private static boolean isLocalPort(ServerPort serverPort) {
+        final InetAddress address = serverPort.localAddress().getAddress();
+        return address.isAnyLocalAddress() || address.isLoopbackAddress();
     }
 
     /**
@@ -125,21 +121,13 @@ public final class Server {
     private void setupMetrics() {
         final MeterRegistry meterRegistry = config().meterRegistry();
         final List<Tag> tags = ImmutableList.of(Tag.of("version", "1.0"),
-            Tag.of("commit", "2000"),
-            Tag.of("repo.status", "final"));
+                                                Tag.of("commit", "2000"),
+                                                Tag.of("repo.status", "final"));
         Gauge.builder("microspace.build.info", () -> 1)
-            .tags(tags)
-            .description("A metric with a constant '1' value labeled by version and commit hash" +
-                " from which Microspace was built.")
-            .register(meterRegistry);
-    }
-
-    private SslProvider createSslProvider() {
-        return SslProvider.isAlpnSupported(SslProvider.OPENSSL) ? SslProvider.OPENSSL : SslProvider.JDK;
-    }
-
-    private ApplicationProtocolConfig createApplicationProtocolConfig() {
-        return new ApplicationProtocolConfig(ALPN, NO_ADVERTISE, ACCEPT, HTTP_2, HTTP_1_1);
+             .tags(tags)
+             .description("A metric with a constant '1' value labeled by version and commit hash" +
+                          " from which Microspace was built.")
+             .register(meterRegistry);
     }
 
     public void start() {
@@ -151,25 +139,6 @@ public final class Server {
      */
     public void start(boolean registerShutdownHook) {
         startupWatch.start();
-        try {
-            if (config().useSsl()) {
-                final SelfSignedCertificate ssc = new SelfSignedCertificate();
-                final ApplicationProtocolConfig config = createApplicationProtocolConfig();
-
-                final File sslCertFile = setKeyCertFileAndPriKey(config().sslCert(), ssc.certificate());
-                final File sslPrivateKeyFile = setKeyCertFileAndPriKey(config().sslPrivateKey(), ssc.privateKey());
-                final String privateKeyPass = config().sslPrivateKeyPass();
-
-                final SupportedCipherSuiteFilter suiteFilter = SupportedCipherSuiteFilter.INSTANCE;
-                final List<String> ciphers = Http2SecurityUtil.CIPHERS;
-                final SslProvider provider = createSslProvider();
-
-                sslContext = SslContextBuilder.forServer(sslCertFile, sslPrivateKeyFile, privateKeyPass)
-                    .applicationProtocolConfig(config).ciphers(ciphers, suiteFilter).sslProvider(provider).build();
-            }
-        } catch (Exception e) {
-            log.error("Build SslContext exception", e);
-        }
 
         if (!isRunning()) {
             final ServerBootstrap serverBootstrap = new ServerBootstrap();
@@ -177,11 +146,11 @@ public final class Server {
             workerGroup = createWorkerEventLoopGroup();
 
             connectionLimitHandler = new ConnectionLimitHandler(config().maxNumConnections());
-            final HttpServerInitializer initializer = new HttpServerInitializer(config, sslContext);
+            final HttpServerInitializer initializer = new HttpServerInitializer(config(), sslContext);
             serverBootstrap.group(parentGroup, workerGroup).handler(connectionLimitHandler)
-                .channel(transportChannel()).childHandler(initializer);
+                           .channel(transportChannel()).childHandler(initializer);
 
-            config.banner().printBanner(config.bannerText(), config.bannerFont());
+            config().banner().printBanner(config().bannerText(), config().bannerFont());
             processOptions(config().channelOptions(), serverBootstrap::option);
             processOptions(config().childChannelOptions(), serverBootstrap::option);
 
@@ -195,18 +164,18 @@ public final class Server {
             final ServerPort primary = it.next();
             final AtomicInteger attempts = new AtomicInteger(0);
             executorService.execute(() -> bindServerToHost(serverBootstrap, primary, attempts)
-                .addListener(new BindNextPortListener(future, it, serverBootstrap))
-                .addListener(new ServerPortStartListener(primary))
-                .addListener((ChannelFutureListener) f -> {
-                    if (!f.isSuccess()) {
-                        startupWatchFuture.completeExceptionally(f.cause());
-                        return;
-                    }
-                    startupWatch.stop();
-                    if (log.isInfoEnabled()) {
-                        log.info("Serving startup time {}{}", startupWatch.elapsed().toMillis(), "ms");
-                    }
-                }));
+                    .addListener(new BindNextPortListener(future, it, serverBootstrap))
+                    .addListener(new ServerPortStartListener(primary))
+                    .addListener((ChannelFutureListener) f -> {
+                        if (!f.isSuccess()) {
+                            startupWatchFuture.completeExceptionally(f.cause());
+                            return;
+                        }
+                        startupWatch.stop();
+                        if (log.isInfoEnabled()) {
+                            log.info("Serving startup time {}{}", startupWatch.elapsed().toMillis(), "ms");
+                        }
+                    }));
         }
 
         if (registerShutdownHook) {
@@ -215,17 +184,21 @@ public final class Server {
 
             if (log.isDebugEnabled()) {
                 log.debug("The shutdown hook has been registered, the " +
-                    "service will call the stop method when the system is shut down");
+                          "service will call the stop method when the system is shut down");
             }
         }
     }
 
-    private ChannelFuture bindServerToHost(ServerBootstrap serverBootstrap, ServerPort serverPort, AtomicInteger attempts) {
+    private ChannelFuture bindServerToHost(ServerBootstrap serverBootstrap,
+                                           ServerPort serverPort,
+                                           AtomicInteger attempts) {
         final String host = serverPort.host();
         int port = serverPort.port();
 
         try {
-            isRunning.compareAndSet(false, true);
+            if (!isRunning.get()) {
+                isRunning.compareAndSet(false, true);
+            }
             if (host != null) {
                 return serverBootstrap.bind(host, port).sync();
             } else {
@@ -248,16 +221,163 @@ public final class Server {
             if (attemptCount < restartCount) {
                 port = FreePortFinder.findFreeLocalPort(port);
                 return bindServerToHost(serverBootstrap,
-                    new ServerPort(port, serverPort.protocols()), attempts);
+                                        new ServerPort(port, serverPort.protocols()), attempts);
             } else {
                 throw new ServerStartupException("Unable to start Microspace server on port: " + port, e);
             }
         }
     }
 
-    private static boolean isLocalPort(ServerPort serverPort) {
-        final InetAddress address = serverPort.localAddress().getAddress();
-        return address.isAnyLocalAddress() || address.isLoopbackAddress();
+    public void stop() {
+        stop(config().stopQuietPeriod(), config().stopTimeout());
+    }
+
+    public void stop(long stopQuietPeriod, long stopTimeout) {
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+        executorService.submit(() -> {
+            synchronized (activePorts) {
+                activePorts().clear();
+            }
+            if (isRunning() && workerGroup != null) {
+                if (isRunning.compareAndSet(true, false)) {
+                    stopServerAndGroup(stopQuietPeriod, stopTimeout);
+                }
+            }
+        });
+        if (executorService instanceof GlobalEventExecutor) {
+            ((GlobalEventExecutor) executorService).shutdownGracefully(
+                    stopQuietPeriod, stopQuietPeriod, TimeUnit.SECONDS);
+        }
+        try {
+            if (!executorService.awaitTermination(stopQuietPeriod, TimeUnit.SECONDS)) {
+                executorService.shutdownNow();
+                if (!executorService.awaitTermination(stopQuietPeriod, TimeUnit.SECONDS)) {
+                    log.info("executorService did not terminate");
+                }
+            }
+        } catch (InterruptedException ie) {
+            executorService.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        stopwatch.stop();
+        log.info("Serving stop time {}{}", stopwatch.elapsed().toMillis(), "ms");
+    }
+
+    private CompletableFuture<Void> closeChannels(Iterable<? extends Channel> channels) {
+        final List<Channel> channelsCopy = ImmutableList.copyOf(channels);
+        if (channelsCopy.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        final AtomicInteger numChannelsToClose = new AtomicInteger(channelsCopy.size());
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        final ChannelFutureListener listener = unused -> {
+            if (numChannelsToClose.decrementAndGet() == 0) {
+                future.complete(null);
+            }
+        };
+        for (Channel ch : channelsCopy) {
+            ch.close().addListener(listener);
+        }
+        return future;
+    }
+
+    private void stopServerAndGroup(long quietPeriod, long timeout) {
+        closeChannels(connectionLimitHandler.childChannels()).handle((unused3, unused4) -> {
+            final Future<?> workerShutdownFuture;
+            if (config().shutdownWorkerGroupOnStop()) {
+                workerShutdownFuture = workerGroup.shutdownGracefully(quietPeriod, timeout,
+                                                                      TimeUnit.MILLISECONDS)
+                                                  .addListener(this::logShutdownErrorIfNecessary);
+            } else {
+                workerShutdownFuture = ImmediateEventExecutor.INSTANCE.newSucceededFuture(null);
+            }
+            workerShutdownFuture.addListener(unused5 -> {
+                final Set<EventLoopGroup> bossGroups =
+                        Server.this.serverChannels.stream()
+                                                  .map(ch -> ch.eventLoop().parent())
+                                                  .collect(toImmutableSet());
+                if (bossGroups.isEmpty()) {
+                    return;
+                }
+                final AtomicInteger remainingBossGroups = new AtomicInteger(bossGroups.size());
+                bossGroups.forEach(bossGroup -> {
+                    bossGroup.shutdownGracefully();
+                    bossGroup.terminationFuture().addListener(unused6 -> remainingBossGroups.decrementAndGet());
+                });
+            });
+            return null;
+        });
+    }
+
+    private void logShutdownErrorIfNecessary(Future<?> future) {
+        if (!future.isSuccess()) {
+            if (log.isWarnEnabled()) {
+                Throwable e = future.cause();
+                log.warn("Error stopping Microspace server: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    private boolean isBindException(Throwable e) {
+        return e.getClass().getName().equals(BindException.class.getName());
+    }
+
+    @SuppressWarnings("rawtypes")
+    private void processOptions(Map<ChannelOption<?>, Object> options,
+                                BiConsumer<ChannelOption, Object> biConsumer) {
+        options.forEach(biConsumer);
+    }
+
+    private EventLoopGroup createWorkerEventLoopGroup() {
+        return createEventLoopGroup("worker" + config().serverThreadName());
+    }
+
+    private EventLoopGroup createParentEventLoopGroup() {
+        return createEventLoopGroup("parent" + config().serverThreadName());
+    }
+
+    private ServerThreadNamer withThreadName(String prefix) {
+        return new ServerThreadNamer(eventLoopGroupName(config().ports().get(0), prefix));
+    }
+
+    private Class<? extends ServerChannel> transportChannel() {
+        return TransportType.detectTransportType().serverChannelType();
+    }
+
+    private String eventLoopGroupName(ServerPort port, String prefix) {
+        final InetSocketAddress localAddr = port.localAddress();
+        final String localHostName =
+                localAddr.getAddress().isAnyLocalAddress() ? "*" : localAddr.getHostString();
+
+        // e.g. 'microspace-boss-http-*:8080'
+        //      'microspace-boss-http-127.0.0.1:8443'
+        //      'microspace-boss-proxy+http+https-127.0.0.1:8443'
+        final String protocolNames = port.protocols().stream()
+                                         .map(SessionProtocol::uriText)
+                                         .collect(Collectors.joining("+"));
+        return "microspace-" + prefix + "-" + protocolNames + '-' + localHostName + ':' + localAddr.getPort();
+    }
+
+    private EventLoopGroup createEventLoopGroup(String threadName) {
+        return TransportType.detectTransportType()
+                            .newEventLoopGroup(config().ioThreadCount(),
+                                               transportType -> withThreadName(threadName));
+    }
+
+    public boolean isRunning() {
+        return isRunning.get();
+    }
+
+    public ServerConfig config() {
+        return config;
+    }
+
+    public Set<ServerChannel> serverChannels() {
+        return serverChannels;
+    }
+
+    public Map<InetSocketAddress, ServerPort> activePorts() {
+        return activePorts;
     }
 
     private final class BindNextPortListener implements ChannelFutureListener {
@@ -286,7 +406,7 @@ public final class Server {
             final ServerPort next = it.next();
             AtomicInteger attempts = new AtomicInteger(0);
             bindServerToHost(serverBootstrap, next, attempts)
-                .addListener(new ServerPortStartListener(next)).addListener(this);
+                    .addListener(new ServerPortStartListener(next)).addListener(this);
         }
     }
 
@@ -320,8 +440,8 @@ public final class Server {
                     String applicationName = config().bootCls().getName();
                     if (isLocalPort(actualPort)) {
                         port.protocols().forEach(p -> log.info(
-                            "Binding {} Serving {} at {} - {}://127.0.0.1:{}/", applicationName,
-                            p.name(), localAddress, p.uriText(), localAddress.getPort()));
+                                "Binding {} Serving {} at {} - {}://127.0.0.1:{}/", applicationName,
+                                p.name(), localAddress, p.uriText(), localAddress.getPort()));
                     }
                 } else {
                     if (log.isInfoEnabled()) {
@@ -330,154 +450,5 @@ public final class Server {
                 }
             }
         }
-    }
-
-    public void stop() {
-        final long stopQuietPeriod = config().stopQuietPeriod();
-        final long stopTimeout = config().stopTimeout();
-
-        final Stopwatch stopwatch = Stopwatch.createStarted();
-        executorService.submit(() -> {
-            synchronized (activePorts) {
-                activePorts().clear();
-            }
-            if (isRunning() && workerGroup != null) {
-                if (isRunning.compareAndSet(true, false)) {
-                    stopServerAndGroup(stopQuietPeriod, stopTimeout);
-                }
-            }
-        });
-        if (executorService instanceof GlobalEventExecutor) {
-            ((GlobalEventExecutor) executorService).shutdownGracefully(
-                stopQuietPeriod, stopQuietPeriod, TimeUnit.SECONDS);
-        }
-        try {
-            if (!executorService.awaitTermination(stopQuietPeriod, TimeUnit.SECONDS)) {
-                executorService.shutdownNow();
-                if (!executorService.awaitTermination(stopQuietPeriod, TimeUnit.SECONDS)){
-                    log.info("executorService did not terminate");
-                }
-            }
-        } catch (InterruptedException ie) {
-            executorService.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-        stopwatch.stop();
-        log.info("Serving stop time {}{}", stopwatch.elapsed().toMillis(), "ms");
-    }
-
-    private CompletableFuture<Void> closeChannels(Iterable<? extends Channel> channels) {
-        final List<Channel> channelsCopy = ImmutableList.copyOf(channels);
-        if (channelsCopy.isEmpty()) {
-            return CompletableFuture.completedFuture(null);
-        }
-        final AtomicInteger numChannelsToClose = new AtomicInteger(channelsCopy.size());
-        final CompletableFuture<Void> future = new CompletableFuture<>();
-        final ChannelFutureListener listener = unused -> {
-            if (numChannelsToClose.decrementAndGet() == 0) {
-                future.complete(null);
-            }
-        };
-        for (Channel ch : channelsCopy) {
-            ch.close().addListener(listener);
-        }
-        return future;
-    }
-
-    private void stopServerAndGroup(long quietPeriod, long timeout) {
-        closeChannels(connectionLimitHandler.childChannels()).handle((unused3, unused4) -> {
-            final Future<?> workerShutdownFuture;
-            if (config.shutdownWorkerGroupOnStop()) {
-                workerShutdownFuture = workerGroup.shutdownGracefully(quietPeriod, timeout, TimeUnit.MILLISECONDS)
-                    .addListener(this::logShutdownErrorIfNecessary);
-            } else {
-                workerShutdownFuture = ImmediateEventExecutor.INSTANCE.newSucceededFuture(null);
-            }
-            workerShutdownFuture.addListener(unused5 -> {
-                final Set<EventLoopGroup> bossGroups =
-                    Server.this.serverChannels.stream()
-                        .map(ch -> ch.eventLoop().parent())
-                        .collect(toImmutableSet());
-                if (bossGroups.isEmpty()) {
-                    return;
-                }
-                final AtomicInteger remainingBossGroups = new AtomicInteger(bossGroups.size());
-                bossGroups.forEach(bossGroup -> {
-                    bossGroup.shutdownGracefully();
-                    bossGroup.terminationFuture().addListener(unused6 -> remainingBossGroups.decrementAndGet());
-                });
-            });
-            return null;
-        });
-    }
-
-    private void logShutdownErrorIfNecessary(Future<?> future) {
-        if (!future.isSuccess()) {
-            if (log.isWarnEnabled()) {
-                Throwable e = future.cause();
-                log.warn("Error stopping Microspace server: " + e.getMessage(), e);
-            }
-        }
-    }
-
-    private boolean isBindException(Throwable e) {
-        return e.getClass().getName().equals(BindException.class.getName());
-    }
-
-    @SuppressWarnings("rawtypes")
-    private void processOptions(Map<ChannelOption<?>, Object> options, BiConsumer<ChannelOption, Object> biConsumer) {
-        options.forEach(biConsumer);
-    }
-
-    private EventLoopGroup createWorkerEventLoopGroup() {
-        return createEventLoopGroup("worker" + config().serverThreadName());
-    }
-
-    private EventLoopGroup createParentEventLoopGroup() {
-        return createEventLoopGroup("parent" + config().serverThreadName());
-    }
-
-    private ServerThreadNamer withThreadName(String prefix) {
-        return new ServerThreadNamer(eventLoopGroupName(config().ports().get(0), prefix));
-    }
-
-    private Class<? extends ServerChannel> transportChannel() {
-        return TransportType.detectTransportType().serverChannelType();
-    }
-
-    private static String eventLoopGroupName(ServerPort port, String prefix) {
-        final InetSocketAddress localAddr = port.localAddress();
-        final String localHostName =
-            localAddr.getAddress().isAnyLocalAddress() ? "*" : localAddr.getHostString();
-
-        // e.g. 'microspace-boss-http-*:8080'
-        //      'microspace-boss-http-127.0.0.1:8443'
-        //      'microspace-boss-proxy+http+https-127.0.0.1:8443'
-        final String protocolNames = port.protocols().stream()
-            .map(SessionProtocol::uriText)
-            .collect(Collectors.joining("+"));
-        return "microspace-" + prefix + "-" + protocolNames + '-' + localHostName + ':' + localAddr.getPort();
-    }
-
-    private EventLoopGroup createEventLoopGroup(String threadName) {
-        return TransportType.detectTransportType()
-            .newEventLoopGroup(config().ioThreadCount(),
-                transportType -> withThreadName(threadName));
-    }
-
-    public boolean isRunning() {
-        return isRunning.get();
-    }
-
-    public ServerConfig config() {
-        return config;
-    }
-
-    public Set<ServerChannel> serverChannels() {
-        return serverChannels;
-    }
-
-    public Map<InetSocketAddress, ServerPort> activePorts() {
-        return activePorts;
     }
 }
