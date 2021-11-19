@@ -23,9 +23,36 @@
  */
 package io.microspace.context.banner;
 
+import io.leego.banana.BananaUtils;
+import io.microspace.context.ansi.AnsiColor;
+import io.microspace.context.ansi.AnsiOutput;
+
 /**
  * @author i1619kHz
  */
-public interface Banner {
-    void printBanner(String bannerText, String bannerFont);
+public class MicrospaceBannerPrinter extends AbstractBannerPrinter {
+    private final String MICRO_SPACE_VERSION = "(v1.0.0 RELEASE)";
+    private final String MICRO_SPACE_FRAMEWORK = ":: microspace framework ::";
+
+    @Override
+    public void prePrintBannerText(String bannerText, String bannerFont) {
+        System.out.println(BananaUtils.bananaify(bannerText, bannerFont));
+    }
+
+    @Override
+    public String setUpPadding(Integer strapLineSize) {
+        final StringBuilder padding = new StringBuilder();
+        while (padding.length() < strapLineSize - (MICRO_SPACE_VERSION.length()
+                                                   + MICRO_SPACE_FRAMEWORK.length())) {
+            padding.append(" ");
+        }
+        return padding.toString();
+    }
+
+    @Override
+    public void printTextAndVersion(String padding) {
+        System.out.println(AnsiOutput.toString(AnsiColor.GREEN, MICRO_SPACE_FRAMEWORK,
+                                               AnsiColor.RESET, padding, MICRO_SPACE_VERSION));
+        System.out.println();
+    }
 }

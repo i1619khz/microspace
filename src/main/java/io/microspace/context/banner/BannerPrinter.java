@@ -26,18 +26,6 @@ package io.microspace.context.banner;
 /**
  * @author i1619kHz
  */
-public abstract class AbstractBanner implements Banner {
-
-    public abstract void prePrintBannerText(String bannerText, String bannerFont);
-
-    public abstract String setUpPadding(Integer strapLineSize);
-
-    public abstract void printTextAndVersion(String padding);
-
-    @Override
-    public void printBanner(String bannerText, String bannerFont) {
-        this.prePrintBannerText(bannerText, bannerFont);
-        final String padding = setUpPadding(42);
-        this.printTextAndVersion(padding);
-    }
+public interface BannerPrinter {
+    void printBanner(String bannerText, String bannerFont);
 }

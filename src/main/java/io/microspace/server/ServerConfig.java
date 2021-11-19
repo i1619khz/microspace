@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import io.micrometer.core.instrument.MeterRegistry;
-import io.microspace.context.banner.Banner;
+import io.microspace.context.banner.BannerPrinter;
 import io.microspace.server.annotation.ExceptionHandlerFunction;
 import io.netty.channel.ChannelOption;
 
@@ -40,7 +40,7 @@ public final class ServerConfig {
     private final Map<ChannelOption<?>, Object> channelOptions;
     private final Map<ChannelOption<?>, Object> childChannelOptions;
     private final ExecutorService startStopExecutor;
-    private final Banner banner;
+    private final BannerPrinter banner;
     private final Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices;
     private final boolean useSsl;
     private final boolean useEpoll;
@@ -77,7 +77,7 @@ public final class ServerConfig {
 
     ServerConfig(List<ServiceConfig> serviceConfigs,
                  Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices,
-                 MeterRegistry meterRegistry, Class<?> bootCls, String[] args, Banner banner,
+                 MeterRegistry meterRegistry, Class<?> bootCls, String[] args, BannerPrinter banner,
                  Map<ChannelOption<?>, Object> channelOptions,
                  Map<ChannelOption<?>, Object> childChannelOptions,
                  boolean useSsl, boolean useEpoll, boolean shutdownWorkerGroupOnStop,
@@ -247,7 +247,7 @@ public final class ServerConfig {
         return ioThreadCount;
     }
 
-    public Banner banner() {
+    public BannerPrinter banner() {
         return banner;
     }
 
