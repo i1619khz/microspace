@@ -87,6 +87,7 @@ public final class Server {
     private final ExecutorService executorService;
     private final ServerConfig config;
     private final SslContext sslContext;
+    private final ServerBootstrap serverBootstrap = new ServerBootstrap();
     private EventLoopGroup workerGroup;
     private ConnectionLimitHandler connectionLimitHandler;
 
@@ -131,6 +132,7 @@ public final class Server {
     }
 
     public void start() {
+        startupWatch.start();
         start(false);
     }
 
@@ -138,45 +140,55 @@ public final class Server {
      * Start http server
      */
     public void start(boolean registerShutdownHook) {
-        startupWatch.start();
+        if (!startupWatch.isRunning()) {
+            startupWatch.start();
+        }
 
-        if (!isRunning()) {
-            final ServerBootstrap serverBootstrap = new ServerBootstrap();
-            final EventLoopGroup parentGroup = createParentEventLoopGroup();
-            workerGroup = createWorkerEventLoopGroup();
+        final EventLoopGroup parentGroup = createParentEventLoopGroup();
+        workerGroup = createWorkerEventLoopGroup();
 
-            connectionLimitHandler = new ConnectionLimitHandler(config().maxNumConnections());
-            final HttpServerInitializer initializer = new HttpServerInitializer(config(), sslContext);
-            serverBootstrap.group(parentGroup, workerGroup).handler(connectionLimitHandler)
-                           .channel(transportChannel()).childHandler(initializer);
+        connectionLimitHandler = new ConnectionLimitHandler(config().maxNumConnections());
+        final HttpServerInitializer initializer = new HttpServerInitializer(config(), sslContext);
+        serverBootstrap.group(parentGroup, workerGroup).handler(connectionLimitHandler)
+                       .channel(transportChannel()).childHandler(initializer);
 
-            config().banner().printBanner(config().bannerText(), config().bannerFont());
-            processOptions(config().channelOptions(), serverBootstrap::option);
-            processOptions(config().childChannelOptions(), serverBootstrap::option);
+        config().banner().printBanner(config().bannerText(), config().bannerFont());
+        processOptions(config().channelOptions(), serverBootstrap::option);
+        processOptions(config().childChannelOptions(), serverBootstrap::option);
 
-            // Initialize the server sockets asynchronously.
-            final CompletableFuture<Void> future = new CompletableFuture<>();
-            final CompletableFuture<Void> startupWatchFuture = new CompletableFuture<>();
-            final List<ServerPort> ports = config().ports();
-            final Iterator<ServerPort> it = ports.iterator();
-            assert it.hasNext();
+        // Initialize the server sockets asynchronously.
+        final List<ServerPort> ports = config().ports();
+        final Iterator<ServerPort> it = ports.iterator();
+        assert it.hasNext();
 
-            final ServerPort primary = it.next();
-            final AtomicInteger attempts = new AtomicInteger(0);
-            executorService.execute(() -> bindServerToHost(serverBootstrap, primary, attempts)
-                    .addListener(new BindNextPortListener(future, it, serverBootstrap))
-                    .addListener(new ServerPortStartListener(primary))
-                    .addListener((ChannelFutureListener) f -> {
+        final ServerPort primary = it.next();
+        final AtomicInteger attempts = new AtomicInteger(0);
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+
+        executorService.execute(() -> doStart(primary, attempts)
+                .addListener(new ServerPortStartListener(primary))
+                .addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture f) {
                         if (!f.isSuccess()) {
-                            startupWatchFuture.completeExceptionally(f.cause());
+                            future.completeExceptionally(f.cause());
                             return;
                         }
+                        if (!it.hasNext()) {
+                            future.complete(null);
+                            return;
+                        }
+
+                        final ServerPort next = it.next();
+                        doStart(next, attempts).addListener(new ServerPortStartListener(next))
+                                               .addListener(this);
                         startupWatch.stop();
                         if (log.isInfoEnabled()) {
-                            log.info("Serving startup time {}{}", startupWatch.elapsed().toMillis(), "ms");
+                            log.info("Serving startup time {}{}",
+                                     startupWatch.elapsed().toMillis(), "ms");
                         }
-                    }));
-        }
+                    }
+                }));
 
         if (registerShutdownHook) {
             final Runtime runtime = Runtime.getRuntime();
@@ -189,9 +201,7 @@ public final class Server {
         }
     }
 
-    private ChannelFuture bindServerToHost(ServerBootstrap serverBootstrap,
-                                           ServerPort serverPort,
-                                           AtomicInteger attempts) {
+    private ChannelFuture doStart(ServerPort serverPort, AtomicInteger attempts) {
         final String host = serverPort.host();
         int port = serverPort.port();
 
@@ -220,8 +230,7 @@ public final class Server {
 
             if (attemptCount < restartCount) {
                 port = FreePortFinder.findFreeLocalPort(port);
-                return bindServerToHost(serverBootstrap,
-                                        new ServerPort(port, serverPort.protocols()), attempts);
+                return doStart(new ServerPort(port, serverPort.protocols()), attempts);
             } else {
                 throw new ServerStartupException("Unable to start Microspace server on port: " + port, e);
             }
@@ -378,36 +387,6 @@ public final class Server {
 
     public Map<InetSocketAddress, ServerPort> activePorts() {
         return activePorts;
-    }
-
-    private final class BindNextPortListener implements ChannelFutureListener {
-        private final CompletableFuture<Void> future;
-        private final Iterator<ServerPort> it;
-        private final ServerBootstrap serverBootstrap;
-
-        private BindNextPortListener(CompletableFuture<Void> future, Iterator<ServerPort> it,
-                                     ServerBootstrap serverBootstrap) {
-            this.future = future;
-            this.it = it;
-            this.serverBootstrap = serverBootstrap;
-        }
-
-        @Override
-        public void operationComplete(ChannelFuture f) {
-            if (!f.isSuccess()) {
-                future.completeExceptionally(f.cause());
-                return;
-            }
-            if (!it.hasNext()) {
-                future.complete(null);
-                return;
-            }
-
-            final ServerPort next = it.next();
-            AtomicInteger attempts = new AtomicInteger(0);
-            bindServerToHost(serverBootstrap, next, attempts)
-                    .addListener(new ServerPortStartListener(next)).addListener(this);
-        }
     }
 
     private final class ServerPortStartListener implements ChannelFutureListener {
