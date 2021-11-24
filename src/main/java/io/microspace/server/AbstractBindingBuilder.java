@@ -38,10 +38,7 @@ import static java.util.Objects.requireNonNull;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -54,15 +51,14 @@ import com.google.common.collect.Sets;
  * An abstract builder class for binding something to a {@link Route} fluently.
  */
 abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
-
     private final List<RoutingPredicate<QueryParams>> paramPredicates = new ArrayList<>();
     private final List<RoutingPredicate<HttpHeaders>> headerPredicates = new ArrayList<>();
-    private final Map<RouteBuilder, Set<HttpMethod>> routeBuilders = new LinkedHashMap<>();
-    private final Set<RouteBuilder> pathBuilders = new LinkedHashSet<>();
-    private final List<Route> additionalRoutes = new ArrayList<>();
     private Set<HttpMethod> methods = ImmutableSet.of();
     private Set<MediaType> consumeTypes = ImmutableSet.of();
     private Set<MediaType> produceTypes = ImmutableSet.of();
+    private RouteBuilder routeBuilder;
+    private HttpService httpService;
+    private Route route;
 
     static void ensureUniqueMediaTypes(Iterable<MediaType> types, String typeName) {
         requireNonNull(types, typeName);
@@ -83,7 +79,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder path(String pathPattern) {
-        pathBuilders.add(Route.builder().path(requireNonNull(pathPattern, "pathPattern"), pathPattern));
+        routeBuilder = Route.builder().pathPattern(requireNonNull(pathPattern, "pathPattern"));
         return this;
     }
 
@@ -94,7 +90,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder pathPrefix(String prefix) {
-        pathBuilders.add(Route.builder().path(requireNonNull(prefix, "prefix"), prefix));
+        routeBuilder = Route.builder().pathPattern(requireNonNull(prefix, "prefix"));
         return this;
     }
 
@@ -107,7 +103,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder get(String pathPattern) {
-        addRouteBuilder(pathPattern, GET);
+        routeBuilder(pathPattern, GET);
         return this;
     }
 
@@ -120,7 +116,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder post(String pathPattern) {
-        addRouteBuilder(pathPattern, POST);
+        routeBuilder(pathPattern, POST);
         return this;
     }
 
@@ -133,7 +129,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder put(String pathPattern) {
-        addRouteBuilder(pathPattern, PUT);
+        routeBuilder(pathPattern, PUT);
         return this;
     }
 
@@ -146,7 +142,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder patch(String pathPattern) {
-        addRouteBuilder(pathPattern, PATCH);
+        routeBuilder(pathPattern, PATCH);
         return this;
     }
 
@@ -159,7 +155,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder delete(String pathPattern) {
-        addRouteBuilder(pathPattern, DELETE);
+        routeBuilder(pathPattern, DELETE);
         return this;
     }
 
@@ -172,7 +168,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder options(String pathPattern) {
-        addRouteBuilder(pathPattern, OPTIONS);
+        routeBuilder(pathPattern, OPTIONS);
         return this;
     }
 
@@ -185,7 +181,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder head(String pathPattern) {
-        addRouteBuilder(pathPattern, HEAD);
+        routeBuilder(pathPattern, HEAD);
         return this;
     }
 
@@ -198,7 +194,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder trace(String pathPattern) {
-        addRouteBuilder(pathPattern, TRACE);
+        routeBuilder(pathPattern, TRACE);
         return this;
     }
 
@@ -211,25 +207,20 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @throws IllegalArgumentException if the specified path pattern is invalid
      */
     public AbstractBindingBuilder connect(String pathPattern) {
-        addRouteBuilder(pathPattern, CONNECT);
+        routeBuilder(pathPattern, CONNECT);
         return this;
     }
 
-    private void addRouteBuilder(String pathPattern, HttpMethod method) {
-        addRouteBuilder(Route.builder().path(requireNonNull(pathPattern, "pathPattern"), pathPattern),
-                        EnumSet.of(method));
+    private void routeBuilder(String pathPattern, HttpMethod method) {
+        final String path = requireNonNull(pathPattern, "pathPattern");
+        routeBuilder(Route.builder().pathPattern(path), EnumSet.of(method));
     }
 
-    private void addRouteBuilder(RouteBuilder routeBuilder, Set<HttpMethod> methods) {
-        final Set<HttpMethod> methodSet = routeBuilders.computeIfAbsent(
-                routeBuilder, key -> EnumSet.noneOf(HttpMethod.class));
-
-        for (HttpMethod method : methods) {
-            if (!methodSet.add(method)) {
-                throw new IllegalArgumentException("duplicate HTTP method: " + method +
-                                                   ", for: " + routeBuilder);
-            }
-        }
+    private void routeBuilder(RouteBuilder routeBuilder, Set<HttpMethod> methods) {
+        requireNonNull(routeBuilder, "routeBuilder");
+        requireNonNull(methods, "methods");
+        this.routeBuilder = requireNonNull(routeBuilder, "routeBuilder");
+        this.methods = methods;
     }
 
     /**
@@ -411,40 +402,31 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
     /**
      * Specifies an additional {@link Route} that should be matched.
      */
-    public AbstractBindingBuilder addRoute(Route route) {
-        additionalRoutes.add(requireNonNull(route, "route"));
+    public AbstractBindingBuilder route(Route route) {
+        this.route = requireNonNull(route, "route");
         return this;
     }
 
     /**
-     * Returns a newly-created {@link Route}s based on the properties of this builder.
-     *
-     * @param fallbackRoutes the {@link Route}s to use when a user did not specify any {@link Route}s.
+     * Specifies an additional {@link HttpService} that should be matched.
      */
-    final List<Route> buildRouteList() {
-        final ImmutableList.Builder<Route> builder = ImmutableList.builder();
+    public AbstractBindingBuilder httpService(HttpService httpService) {
+        this.httpService = requireNonNull(httpService, "httpService");
+        return this;
+    }
 
-        if (additionalRoutes.isEmpty()) {
-            if (pathBuilders.isEmpty() && !methods.isEmpty()) {
-                throw new IllegalStateException("Should set a path when the methods are set: " + methods);
-            }
+    HttpService httpService() {
+        return httpService;
+    }
+
+    Route buildRoute() {
+        if (null != route) {
+            return route;
         }
-
-        if (!pathBuilders.isEmpty()) {
-            final Set<HttpMethod> pathMethods = methods.isEmpty() ? HttpMethod.knownMethods() : methods;
-            pathBuilders.forEach(pathBuilder -> addRouteBuilder(pathBuilder, pathMethods));
-        }
-
-        routeBuilders.forEach((routeBuilder, routeMethods) ->
-                                      builder.add(routeBuilder.methods(routeMethods)
-                                                              .statusCode(HttpStatus.OK)
-                                                              .consumes(consumeTypes)
-                                                              .produces(produceTypes)
-                                                              .matchesParams(paramPredicates)
-                                                              .matchesHeaders(headerPredicates)
-                                                              .build()));
-        additionalRoutes.forEach(builder::add);
-        return builder.build();
+        return routeBuilder.statusCode(HttpStatus.OK).methods(methods)
+                           .consumes(consumeTypes).produces(produceTypes)
+                           .matchesParams(paramPredicates).matchesHeaders(headerPredicates)
+                           .build();
     }
 }
 

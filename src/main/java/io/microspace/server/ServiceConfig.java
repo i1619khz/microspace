@@ -46,8 +46,10 @@ public final class ServiceConfig {
     private final boolean handlesCorsPreflight;
 
     ServiceConfig(Route route, HttpService service,
-                  @Nullable String defaultServiceName, @Nullable String defaultLogName,
-                  long requestTimeoutMillis, long maxRequestLength, boolean verboseResponses) {
+                  @Nullable String defaultServiceName,
+                  @Nullable String defaultLogName,
+                  long requestTimeoutMillis, long maxRequestLength,
+                  boolean verboseResponses) {
         this.route = requireNonNull(route, "route");
         this.service = requireNonNull(service, "service");
         this.defaultServiceName = defaultServiceName;

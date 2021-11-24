@@ -24,8 +24,11 @@
 package io.microspace.server;
 
 import java.time.Duration;
+import java.util.function.Function;
 
 interface ServiceConfigSetters {
+    ServiceConfigSetters decorator(Function<? super HttpService, ? extends HttpService> decorator);
+
     ServiceConfigSetters requestTimeout(Duration requestTimeout);
 
     ServiceConfigSetters requestTimeoutMillis(long requestTimeoutMillis);

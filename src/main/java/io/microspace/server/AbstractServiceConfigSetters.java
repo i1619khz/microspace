@@ -26,6 +26,7 @@ package io.microspace.server;
 import static java.util.Objects.requireNonNull;
 
 import java.time.Duration;
+import java.util.function.Function;
 
 import com.google.common.base.MoreObjects;
 
@@ -38,6 +39,13 @@ abstract class AbstractServiceConfigSetters implements ServiceConfigSetters {
     private Long requestTimeoutMillis;
     private Long maxRequestLength;
     private Boolean verboseResponses;
+    private Function<? super HttpService, ? extends HttpService> decorator;
+
+    @Override
+    public ServiceConfigSetters decorator(Function<? super HttpService, ? extends HttpService> decorator) {
+        this.decorator = requireNonNull(decorator, "decorator");
+        return this;
+    }
 
     @Override
     public ServiceConfigSetters requestTimeout(Duration requestTimeout) {

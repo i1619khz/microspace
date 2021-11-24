@@ -23,10 +23,19 @@
  */
 package io.microspace.server;
 
+import static java.util.Objects.requireNonNull;
+
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.google.common.base.MoreObjects;
+
+import io.microspace.server.annotation.ExceptionHandlerFunction;
+import io.microspace.server.annotation.RequestConverterFunction;
+import io.microspace.server.annotation.ResponseConverterFunction;
 
 /**
  * @author i1619kHz
@@ -34,19 +43,41 @@ import com.google.common.base.MoreObjects;
 final class AnnotatedService implements HttpService {
     private final Object target;
     private final Method method;
+    private final boolean needToUseBlockingTaskExecutor;
+    private final Map<String, Set<String>> addedHeaders;
+    private final List<RequestConverterFunction> requestConverterFunctions;
+    private final List<ResponseConverterFunction> responseConverterFunctions;
+    private final List<ExceptionHandlerFunction> exceptionHandlerFunctions;
 
-    AnnotatedService(Object target, Method method) {
+    AnnotatedService(Object target, Method method,
+                     boolean needToUseBlockingTaskExecutor,
+                     Map<String, Set<String>> addedHeaders,
+                     List<RequestConverterFunction> requestConverterFunctions,
+                     List<ResponseConverterFunction> responseConverterFunctions,
+                     List<ExceptionHandlerFunction> exceptionHandlerFunctions) {
+        requireNonNull(target, "target");
+        requireNonNull(method, "method");
+        requireNonNull(addedHeaders, "addedHeaders");
+        requireNonNull(requestConverterFunctions, "requestConverterFunctions");
+        requireNonNull(responseConverterFunctions, "responseConverterFunctions");
+        requireNonNull(exceptionHandlerFunctions, "exceptionHandlerFunctions");
         this.target = target;
         this.method = method;
+        this.addedHeaders = addedHeaders;
+        this.needToUseBlockingTaskExecutor = needToUseBlockingTaskExecutor;
+        this.requestConverterFunctions = requestConverterFunctions;
+        this.responseConverterFunctions = responseConverterFunctions;
+        this.exceptionHandlerFunctions = exceptionHandlerFunctions;
     }
 
     @Override
-    public void serve(Request request, Response response) {
+    public HttpResponse serve(Request request) {
         try {
             Object invoke = method.invoke(target);
         } catch (IllegalAccessException | InvocationTargetException e) {
             e.printStackTrace();
         }
+        return HttpResponse.of("11");
     }
 
     @Override

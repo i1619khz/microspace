@@ -26,8 +26,8 @@ package io.microspace.server;
 import static java.util.Objects.requireNonNull;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableList.Builder;
@@ -44,7 +44,6 @@ final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetters 
     private final Builder<RequestConverterFunction> requestConverterFunctionBuilder = ImmutableList.builder();
     private final Builder<ResponseConverterFunction> responseConverterFunctionBuilder = ImmutableList.builder();
     private final ServerBuilder serverBuilder;
-
     private boolean useBlockingTaskExecutor;
     private String pathPrefix = "/";
     private Object service;
@@ -105,8 +104,17 @@ final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetters 
     }
 
     public ServerBuilder build(Object service) {
-        this.service = requireNonNull(service, "service");
+        requireNonNull(service, "service");
+        this.service = service;
+        serverBuilder.serviceConfigBuilder(this);
         return serverBuilder;
+    }
+
+    @Override
+    public AnnotatedServiceBindingBuilder decorator(
+            Function<? super HttpService, ? extends HttpService> decorator) {
+        super.decorator(decorator);
+        return this;
     }
 
     @Override
@@ -150,7 +158,21 @@ final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetters 
         return super.toServiceConfigBuilder(route, service);
     }
 
-    List<ServiceConfigBuilder> buildServiceConfigBuilder(Route route, HttpService service) {
-        return Collections.emptyList();
+    List<ServiceConfigBuilder> buildServiceConfigBuilder() {
+        List<RequestConverterFunction> requestConverterFunctions
+                = requestConverterFunctionBuilder.build();
+        List<ResponseConverterFunction> responseConverterFunctions
+                = responseConverterFunctionBuilder.build();
+        List<ExceptionHandlerFunction> exceptionHandlerFunctions =
+                exceptionHandlerFunctionBuilder.build();
+
+        List<AnnotatedServiceElement> elements =
+                AnnotatedServiceFactory.find(
+                        pathPrefix, service, useBlockingTaskExecutor, requestConverterFunctions,
+                        responseConverterFunctions, exceptionHandlerFunctions);
+
+        return elements.stream().map(element -> {
+            return toServiceConfigBuilder(element.route(), element.service());
+        }).collect(ImmutableList.toImmutableList());
     }
 }

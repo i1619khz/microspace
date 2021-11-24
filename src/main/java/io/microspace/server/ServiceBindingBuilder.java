@@ -29,10 +29,11 @@ import java.util.function.Predicate;
 /**
  * @author i1619kHz
  */
-public final class ServiceBindingBuilder extends AbstractServiceBindingBuilder {
+public final class ServiceBindingBuilder extends AbstractBindingBuilder {
+    private final ServerBuilder serverBuilder;
 
     ServiceBindingBuilder(ServerBuilder serverBuilder) {
-        super(serverBuilder);
+        this.serverBuilder = serverBuilder;
     }
 
     @Override
@@ -152,8 +153,8 @@ public final class ServiceBindingBuilder extends AbstractServiceBindingBuilder {
     }
 
     @Override
-    public ServiceBindingBuilder addRoute(Route route) {
-        return (ServiceBindingBuilder) super.addRoute(route);
+    public ServiceBindingBuilder route(Route route) {
+        return (ServiceBindingBuilder) super.route(route);
     }
 
     @Override
@@ -186,13 +187,14 @@ public final class ServiceBindingBuilder extends AbstractServiceBindingBuilder {
         return (ServiceBindingBuilder) super.defaultLogName(defaultLogName);
     }
 
-    @Override
-    void serviceConfigBuilder(ServiceConfigBuilder serviceConfigBuilder) {
-        serverBuilder().serviceConfigBuilder(serviceConfigBuilder);
+    public ServerBuilder build(HttpService httpService) {
+        super.httpService(httpService);
+        final Route route = buildRoute();
+        return serviceConfigBuilder(toServiceConfigBuilder(route, httpService()));
     }
 
-    public ServerBuilder build(HttpService httpService) {
-        buildService(httpService);
-        return serverBuilder();
+    ServerBuilder serviceConfigBuilder(ServiceConfigBuilder serviceConfigBuilder) {
+        this.serverBuilder.serviceConfigBuilder(serviceConfigBuilder);
+        return serverBuilder;
     }
 }

@@ -26,6 +26,7 @@ package io.microspace.server;
 import static java.util.Objects.requireNonNull;
 
 import java.time.Duration;
+import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
@@ -52,6 +53,11 @@ final class ServiceConfigBuilder implements ServiceConfigSetters {
     ServiceConfigBuilder(Route route, HttpService service) {
         this.route = requireNonNull(route, "route");
         this.service = requireNonNull(service, "service");
+    }
+
+    @Override
+    public ServiceConfigSetters decorator(Function<? super HttpService, ? extends HttpService> decorator) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
