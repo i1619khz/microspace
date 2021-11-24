@@ -44,16 +44,11 @@ final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetters 
     private final Builder<RequestConverterFunction> requestConverterFunctionBuilder = ImmutableList.builder();
     private final Builder<ResponseConverterFunction> responseConverterFunctionBuilder = ImmutableList.builder();
     private final ServerBuilder serverBuilder;
-    private boolean useBlockingTaskExecutor;
     private String pathPrefix = "/";
     private Object service;
 
     public AnnotatedServiceBindingBuilder(ServerBuilder serverBuilder) {
         this.serverBuilder = serverBuilder;
-    }
-
-    public void useBlockingTaskExecutor(boolean useBlockingTaskExecutor) {
-        this.useBlockingTaskExecutor = useBlockingTaskExecutor;
     }
 
     public AnnotatedServiceBindingBuilder pathPrefix(String pathPrefix) {
@@ -168,7 +163,7 @@ final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetters 
 
         List<AnnotatedServiceElement> elements =
                 AnnotatedServiceFactory.find(
-                        pathPrefix, service, useBlockingTaskExecutor, requestConverterFunctions,
+                        pathPrefix, service, requestConverterFunctions,
                         responseConverterFunctions, exceptionHandlerFunctions);
 
         return elements.stream().map(element -> {

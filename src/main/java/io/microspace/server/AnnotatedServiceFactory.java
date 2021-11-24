@@ -122,14 +122,12 @@ public class AnnotatedServiceFactory {
      * {@link ExceptionHandlerFunction}s and {@link AnnotatedServiceExtensions}.
      */
     public static List<AnnotatedServiceElement> find(String pathPrefix, Object object,
-                                                     boolean useBlockingTaskExecutor,
                                                      List<RequestConverterFunction> requestConverterFunctions,
                                                      List<ResponseConverterFunction> responseConverterFunctions,
                                                      List<ExceptionHandlerFunction> exceptionHandlerFunctions) {
         final List<Method> requestMappingMethods = requestMappingMethods(object);
         return requestMappingMethods.stream().flatMap((method) -> requireNonNull(
                                             create(pathPrefix, object, method,
-                                                   useBlockingTaskExecutor,
                                                    requestConverterFunctions,
                                                    responseConverterFunctions,
                                                    exceptionHandlerFunctions))
@@ -139,7 +137,6 @@ public class AnnotatedServiceFactory {
     }
 
     public static List<AnnotatedServiceElement> create(String prefix, Object service, Method method,
-                                                       boolean useBlockingTaskExecutor,
                                                        List<RequestConverterFunction> baseRequestConverterFunctions,
                                                        List<ResponseConverterFunction> baseResponseConverterFunctions,
                                                        List<ExceptionHandlerFunction> baseExceptionHandlerFunctions) {
@@ -204,7 +201,7 @@ public class AnnotatedServiceFactory {
         setAdditionalHeader(method, "trailer", methodAlias, "method",
                             AdditionalTrailer.class, AdditionalTrailer::name, AdditionalTrailer::value);
 
-        final boolean needToUseBlockingTaskExecutor = useBlockingTaskExecutor || findFirst(
+        final boolean needToUseBlockingTaskExecutor = findFirst(
                 method, Blocking.class) != null || findFirst(service.getClass(), Blocking.class) != null;
 
         return routes.stream().map(route -> new AnnotatedServiceElement(
