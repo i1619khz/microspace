@@ -51,8 +51,8 @@ import com.google.common.collect.Sets;
  * An abstract builder class for binding something to a {@link Route} fluently.
  */
 abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
-    private final List<RoutingPredicate<QueryParams>> paramPredicates = new ArrayList<>();
-    private final List<RoutingPredicate<HttpHeaders>> headerPredicates = new ArrayList<>();
+    private final List<RoutePredicate<QueryParams>> paramPredicates = new ArrayList<>();
+    private final List<RoutePredicate<HttpHeaders>> headerPredicates = new ArrayList<>();
     private Set<HttpMethod> methods = ImmutableSet.of();
     private Set<MediaType> consumeTypes = ImmutableSet.of();
     private Set<MediaType> produceTypes = ImmutableSet.of();
@@ -331,7 +331,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @see io.microspace.server.annotation.MatchesParam
      */
     public AbstractBindingBuilder matchesParams(Iterable<String> paramPredicates) {
-        this.paramPredicates.addAll(RoutingPredicate.copyOfParamPredicates(
+        this.paramPredicates.addAll(RoutePredicate.copyOfParamPredicates(
                 requireNonNull(paramPredicates, "paramPredicates")));
         return this;
     }
@@ -343,7 +343,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
     public AbstractBindingBuilder matchesParams(String paramName, Predicate<? super String> valuePredicate) {
         requireNonNull(paramName, "paramName");
         requireNonNull(valuePredicate, "valuePredicate");
-        paramPredicates.add(RoutingPredicate.ofParams(paramName, valuePredicate));
+        paramPredicates.add(RoutePredicate.ofParams(paramName, valuePredicate));
         return this;
     }
 
@@ -382,7 +382,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
      * @see io.microspace.server.annotation.MatchesHeader
      */
     public AbstractBindingBuilder matchesHeaders(Iterable<String> headerPredicates) {
-        this.headerPredicates.addAll(RoutingPredicate.copyOfHeaderPredicates(
+        this.headerPredicates.addAll(RoutePredicate.copyOfHeaderPredicates(
                 requireNonNull(headerPredicates, "headerPredicates")));
         return this;
     }
@@ -395,7 +395,7 @@ abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
                                                  Predicate<? super String> valuePredicate) {
         requireNonNull(headerName, "headerName");
         requireNonNull(valuePredicate, "valuePredicate");
-        headerPredicates.add(RoutingPredicate.ofHeaders(headerName, valuePredicate));
+        headerPredicates.add(RoutePredicate.ofHeaders(headerName, valuePredicate));
         return this;
     }
 
