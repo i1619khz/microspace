@@ -30,12 +30,15 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
 
 import com.google.common.base.MoreObjects;
 
+import io.microspace.internal.AnnotationUtil;
 import io.microspace.server.annotation.ExceptionHandlerFunction;
 import io.microspace.server.annotation.RequestConverterFunction;
 import io.microspace.server.annotation.ResponseConverterFunction;
+import io.microspace.server.annotation.ServiceName;
 
 /**
  * @author i1619kHz
@@ -48,6 +51,8 @@ final class AnnotatedService implements HttpService {
     private final List<RequestConverterFunction> requestConverterFunctions;
     private final List<ResponseConverterFunction> responseConverterFunctions;
     private final List<ExceptionHandlerFunction> exceptionHandlerFunctions;
+    private String defaultServiceName;
+    private ResponseType responseType;
 
     AnnotatedService(Object target, Method method,
                      boolean needToUseBlockingTaskExecutor,
@@ -55,19 +60,50 @@ final class AnnotatedService implements HttpService {
                      List<RequestConverterFunction> requestConverterFunctions,
                      List<ResponseConverterFunction> responseConverterFunctions,
                      List<ExceptionHandlerFunction> exceptionHandlerFunctions) {
-        requireNonNull(target, "target");
-        requireNonNull(method, "method");
-        requireNonNull(addedHeaders, "addedHeaders");
-        requireNonNull(requestConverterFunctions, "requestConverterFunctions");
-        requireNonNull(responseConverterFunctions, "responseConverterFunctions");
-        requireNonNull(exceptionHandlerFunctions, "exceptionHandlerFunctions");
-        this.target = target;
-        this.method = method;
-        this.addedHeaders = addedHeaders;
+        this.target = requireNonNull(target, "target");
+        this.method = requireNonNull(method, "method");
+        this.addedHeaders = requireNonNull(addedHeaders, "addedHeaders");
         this.needToUseBlockingTaskExecutor = needToUseBlockingTaskExecutor;
-        this.requestConverterFunctions = requestConverterFunctions;
-        this.responseConverterFunctions = responseConverterFunctions;
-        this.exceptionHandlerFunctions = exceptionHandlerFunctions;
+        this.requestConverterFunctions = requireNonNull(requestConverterFunctions, "requestConverterFunctions");
+        this.responseConverterFunctions = requireNonNull(responseConverterFunctions,
+                                                         "responseConverterFunctions");
+        this.exceptionHandlerFunctions = requireNonNull(exceptionHandlerFunctions, "exceptionHandlerFunctions");
+        final Class<?> returnType = method.getReturnType();
+        if (returnType.isAssignableFrom(HttpResponse.class)) {
+            responseType = ResponseType.HTTP_RESPONSE;
+        } else if (returnType.isAssignableFrom(CompletionStage.class)) {
+            responseType = ResponseType.COMPLETION_STAGE;
+        } else {
+            responseType = ResponseType.OTHER_OBJECTS;
+        }
+
+        ServiceName serviceName = AnnotationUtil.findFirst(method, ServiceName.class);
+        if (serviceName == null) {
+            serviceName = AnnotationUtil.findFirst(target.getClass(), ServiceName.class);
+        }
+        if (serviceName != null) {
+            defaultServiceName = serviceName.value();
+        } else {
+            defaultServiceName = target.getClass().getName();
+        }
+
+        this.method.setAccessible(true);
+    }
+
+    public String serviceName() {
+        return defaultServiceName;
+    }
+
+    public String methodName() {
+        return method.getName();
+    }
+
+    Object object() {
+        return target;
+    }
+
+    Method method() {
+        return method;
     }
 
     @Override
@@ -86,5 +122,12 @@ final class AnnotatedService implements HttpService {
                           .add("target", target)
                           .add("method", method)
                           .toString();
+    }
+
+    /**
+     * Response type classification of the annotated {@link Method}.
+     */
+    private enum ResponseType {
+        HTTP_RESPONSE, COMPLETION_STAGE, OTHER_OBJECTS
     }
 }

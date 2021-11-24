@@ -84,11 +84,20 @@ abstract class AbstractServiceConfigSetters implements ServiceConfigSetters {
 
     ServiceConfigBuilder toServiceConfigBuilder(Route route, HttpService service) {
         final ServiceConfigBuilder serviceConfigBuilder = new ServiceConfigBuilder(route, service);
+        AnnotatedService annotatedService = (AnnotatedService) service;
         if (defaultServiceName != null) {
             serviceConfigBuilder.defaultServiceName(defaultServiceName);
+        } else {
+            if (service != null) {
+                serviceConfigBuilder.defaultServiceName(annotatedService.serviceName());
+            }
         }
         if (defaultLogName != null) {
             serviceConfigBuilder.defaultLogName(defaultLogName);
+        } else {
+            if (service != null) {
+                serviceConfigBuilder.defaultLogName(annotatedService.methodName());
+            }
         }
         if (requestTimeoutMillis != null) {
             serviceConfigBuilder.requestTimeoutMillis(requestTimeoutMillis);
