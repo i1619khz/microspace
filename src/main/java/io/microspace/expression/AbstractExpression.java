@@ -21,34 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server;
+package io.microspace.expression;
 
-import static java.util.Objects.requireNonNull;
+import javax.el.ExpressionFactory;
 
-import java.util.List;
+import de.odysseus.el.ExpressionFactoryImpl;
+import de.odysseus.el.util.SimpleContext;
 
 /**
  * @author i1619kHz
  */
-abstract class AbstractServiceBindingBuilder extends AbstractBindingBuilder {
-    private final ServerBuilder serverBuilder;
+public abstract class AbstractExpression {
+    protected final SimpleContext context = new SimpleContext();
+    protected final ExpressionFactory expressionFactory;
 
-    AbstractServiceBindingBuilder(ServerBuilder serverBuilder) {
-        this.serverBuilder = requireNonNull(serverBuilder, "serverBuilder");
+    public AbstractExpression() {
+        this(new ExpressionFactoryImpl());
     }
 
-    ServerBuilder serverBuilder() {
-        return serverBuilder;
-    }
-
-    abstract void serviceConfigBuilder(ServiceConfigBuilder serviceConfigBuilder);
-
-    final void buildService(HttpService httpService) {
-        final List<Route> routes = buildRouteList();
-        for (Route route : routes) {
-            final ServiceConfigBuilder serviceConfigBuilder =
-                    this.toServiceConfigBuilder(route, httpService);
-            serviceConfigBuilder(serviceConfigBuilder);
-        }
+    public AbstractExpression(ExpressionFactory expressionFactory) {
+        this.expressionFactory = expressionFactory;
     }
 }

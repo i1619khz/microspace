@@ -165,7 +165,7 @@ public final class Server {
         final AtomicInteger attempts = new AtomicInteger(0);
         final CompletableFuture<Void> future = new CompletableFuture<>();
 
-        executorService.execute(() -> doStart(primary, attempts)
+        executorService.execute(() -> start(primary, attempts)
                 .addListener(new ServerPortStartListener(primary))
                 .addListener(new ChannelFutureListener() {
                     @Override
@@ -180,8 +180,8 @@ public final class Server {
                         }
 
                         final ServerPort next = it.next();
-                        doStart(next, attempts).addListener(new ServerPortStartListener(next))
-                                               .addListener(this);
+                        start(next, attempts).addListener(new ServerPortStartListener(next))
+                                             .addListener(this);
                         startupWatch.stop();
                         if (log.isInfoEnabled()) {
                             log.info("Serving startup time {}{}",
@@ -201,7 +201,7 @@ public final class Server {
         }
     }
 
-    private ChannelFuture doStart(ServerPort serverPort, AtomicInteger attempts) {
+    private ChannelFuture start(ServerPort serverPort, AtomicInteger attempts) {
         final String host = serverPort.host();
         int port = serverPort.port();
 
@@ -230,7 +230,7 @@ public final class Server {
 
             if (attemptCount < restartCount) {
                 port = FreePortFinder.findFreeLocalPort(port);
-                return doStart(new ServerPort(port, serverPort.protocols()), attempts);
+                return start(new ServerPort(port, serverPort.protocols()), attempts);
             } else {
                 throw new ServerStartupException("Unable to start Microspace server on port: " + port, e);
             }
