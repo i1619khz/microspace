@@ -46,4 +46,5 @@ module microspace {
     exports io.microspace.inject;
     exports io.microspace.internal;
     exports io.microspace.server;
+    exports io.microspace.aop;
 }
