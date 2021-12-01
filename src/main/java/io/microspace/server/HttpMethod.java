@@ -132,20 +132,11 @@ public enum HttpMethod {
      */
     public static boolean isSupported(String value) {
         requireNonNull(value, "value");
-        switch (value) {
-            case "OPTIONS":
-            case "GET":
-            case "HEAD":
-            case "POST":
-            case "PUT":
-            case "PATCH":
-            case "DELETE":
-            case "TRACE":
-            case "CONNECT":
-                return true;
-        }
+        return switch (value) {
+            case "OPTIONS", "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "TRACE", "CONNECT" -> true;
+            default -> false;
+        };
 
-        return false;
     }
 
     /**

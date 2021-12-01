@@ -381,13 +381,10 @@ public class HttpStatus implements Comparable<HttpStatus> {
      */
     @SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
     public static boolean isContentAlwaysEmpty(int statusCode) {
-        switch (statusCode) {
-            case /* NO_CONTENT */ 204:
-            case /* RESET_CONTENT */ 205:
-            case /* NOT_MODIFIED */ 304:
-                return true;
-        }
-        return false;
+        return switch (statusCode) { /* NO_CONTENT */ /* RESET_CONTENT */
+            case 204, 205, /* NOT_MODIFIED */ 304 -> true;
+            default -> false;
+        };
     }
 
     private final int code;
@@ -420,11 +417,9 @@ public class HttpStatus implements Comparable<HttpStatus> {
             final char c = reasonPhrase.charAt(i);
             // Check prohibited characters.
             switch (c) {
-                case '\n':
-                case '\r':
-                    throw new IllegalArgumentException(
-                            "reasonPhrase contains one of the following prohibited characters: " +
-                            "\\r\\n: " + reasonPhrase);
+                case '\n', '\r' -> throw new IllegalArgumentException(
+                        "reasonPhrase contains one of the following prohibited characters: " +
+                        "\\r\\n: " + reasonPhrase);
             }
         }
 
