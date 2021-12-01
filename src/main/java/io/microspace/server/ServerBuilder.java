@@ -494,16 +494,16 @@ public final class ServerBuilder {
         final Builder<RequestConverterFunction> requestConverters = ImmutableList.builder();
         final Builder<ResponseConverterFunction> responseConverters = ImmutableList.builder();
         final Builder<ExceptionHandlerFunction> exceptionHandlers = ImmutableList.builder();
-        for (final Object o : exceptionHandlersAndConverters) {
-            if (o instanceof RequestConverterFunction) {
-                requestConverters.add((RequestConverterFunction) o);
-            } else if (o instanceof ResponseConverterFunction) {
-                responseConverters.add((ResponseConverterFunction) o);
-            } else if (o instanceof ExceptionHandlerFunction) {
-                exceptionHandlers.add((ExceptionHandlerFunction) o);
-            } else {
-                throw new IllegalArgumentException(o.getClass().getName() +
-                                                   " is neither an exception handler nor a converter.");
+        for (final Object object : exceptionHandlersAndConverters) {
+            if (null == object) {
+                continue;
+            }
+            switch (object) {
+                case RequestConverterFunction reqConverter -> requestConverters.add(reqConverter);
+                case ResponseConverterFunction respConverter -> responseConverters.add(respConverter);
+                case ExceptionHandlerFunction excHandler -> exceptionHandlers.add(excHandler);
+                default -> throw new IllegalArgumentException(
+                        object.getClass().getName() + " is neither an exception handler nor a converter.");
             }
         }
         return annotatedService(pathPrefix, service, decorator, exceptionHandlers.build(),
