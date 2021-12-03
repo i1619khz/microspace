@@ -26,6 +26,7 @@
         <jimfs.version>1.2</jimfs.version>
         <disruptor.version>3.4.4</disruptor.version>
         <juel.version>2.2.6</juel.version>
+        <bytebuddy.version>1.12.2</bytebuddy.version>
         <netty-quic.version>0.0.18.Final</netty-quic.version>
         <netty-io_using.version>0.0.8.Final</netty-io_using.version>
         <netty-codec-http3.version>0.0.8.Final</netty-codec-http3.version>
@@ -190,6 +191,11 @@
             <groupId>de.odysseus.juel</groupId>
             <artifactId>juel-spi</artifactId>
             <version>${juel.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy</artifactId>
+            <version>${bytebuddy.version}</version>
         </dependency>
     </dependencies>
 
