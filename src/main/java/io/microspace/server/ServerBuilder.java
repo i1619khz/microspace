@@ -161,8 +161,11 @@ public final class ServerBuilder {
     }
 
     public ServerBuilder port(ServerPort serverPort) {
-        checkArgument(null != serverPort, "serverPort");
-        this.ports.add(requireNonNull(serverPort));
+        requireNonNull(serverPort, "serverPort");
+        checkArgument(Flags.checkMinPort(serverPort.port()),
+                      "The minimum server currentMinPort number for IPv4. " +
+                      "Set at 1100 to avoid returning privileged currentMinPort numbers.");
+        this.ports.add(requireNonNull(serverPort, "serverPot"));
         return this;
     }
 
