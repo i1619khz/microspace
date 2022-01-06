@@ -133,7 +133,6 @@ public class AnnotatedServiceFactory {
                                                    exceptionHandlerFunctions))
                                             .stream())
                                     .collect(ImmutableList.toImmutableList());
-
     }
 
     public static List<AnnotatedServiceElement> create(String prefix, Object service, Method method,
@@ -463,14 +462,14 @@ public class AnnotatedServiceFactory {
         return invokeAnnotationMethod(a, "value");
     }
 
-    private <A extends Annotation, K1 extends K, V1 extends V, K, V>
-    Map<K, V> getAnnotatedInstanceMap(AnnotatedElement method,
-                                      AnnotatedElement clazz,
-                                      Class<K> keyType,
-                                      Class<V> valueType,
-                                      Class<A> annotation,
-                                      Function<A, Class<K1>> keyGetter,
-                                      Function<A, Class<V1>> valueGetter) {
+    private static <A extends Annotation, K1 extends K, V1 extends V, K, V>
+    ImmutableMap.Builder<K, V> getAnnotatedInstanceMap(AnnotatedElement method,
+                                                       AnnotatedElement clazz,
+                                                       Class<K> keyType,
+                                                       Class<V> valueType,
+                                                       Class<A> annotation,
+                                                       Function<A, Class<K1>> keyGetter,
+                                                       Function<A, Class<V1>> valueGetter) {
         final ImmutableMap.Builder<K, V> builder = ImmutableMap.builder();
         Streams.concat(AnnotationUtil.findAll(clazz, annotation).stream(),
                        AnnotationUtil.findAll(method, annotation).stream()
@@ -485,6 +484,6 @@ public class AnnotatedServiceFactory {
                 builder.put(getInstance(keyConstructor, keyType), getInstance(valueConstructor, valueType));
             }
         });
-        return builder.build();
+        return builder;
     }
 }
