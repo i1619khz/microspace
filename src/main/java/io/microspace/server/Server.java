@@ -238,10 +238,15 @@ public final class Server {
     }
 
     public void stop() {
-        stop(config().stopQuietPeriod(), config().stopTimeout());
+        try {
+            stop(config().stopQuietPeriod(), config().stopTimeout());
+        } catch (InterruptedException ie) {
+            executorService.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
-    public void stop(long stopQuietPeriod, long stopTimeout) {
+    public void stop(long stopQuietPeriod, long stopTimeout) throws InterruptedException {
         final Stopwatch stopwatch = Stopwatch.createStarted();
         executorService.submit(() -> {
             synchronized (activePorts) {
@@ -253,21 +258,20 @@ public final class Server {
                 }
             }
         });
+
         if (executorService instanceof GlobalEventExecutor) {
             ((GlobalEventExecutor) executorService).shutdownGracefully(
                     stopQuietPeriod, stopQuietPeriod, TimeUnit.SECONDS);
-        }
-        try {
+        } else {
             if (!executorService.awaitTermination(stopQuietPeriod, TimeUnit.SECONDS)) {
+                log.info("executorService did not terminate");
                 executorService.shutdownNow();
                 if (!executorService.awaitTermination(stopQuietPeriod, TimeUnit.SECONDS)) {
                     log.info("executorService did not terminate");
                 }
             }
-        } catch (InterruptedException ie) {
-            executorService.shutdownNow();
-            Thread.currentThread().interrupt();
         }
+
         stopwatch.stop();
         log.info("Serving stop time {}{}", stopwatch.elapsed().toMillis(), "ms");
     }
