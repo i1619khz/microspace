@@ -73,13 +73,11 @@ public class RoutePredicate<T> implements Predicate<T> {
         this.delegate = requireNonNull(delegate, "delegate");
     }
 
-    @SuppressWarnings("unchecked")
     static List<RoutePredicate<HttpHeaders>> copyOfHeaderPredicates(Iterable<String> predicates) {
         return Streams.stream(predicates)
                       .map(RoutePredicate::ofHeaders).collect(toImmutableList());
     }
 
-    @SuppressWarnings("unchecked")
     static List<RoutePredicate<QueryParams>> copyOfParamPredicates(Iterable<String> predicates) {
         return Streams.stream(predicates)
                       .map(RoutePredicate::ofParams).collect(toImmutableList());
@@ -177,11 +175,10 @@ public class RoutePredicate<T> implements Predicate<T> {
             return true;
         }
 
-        if (!(o instanceof RoutePredicate)) {
+        if (!(o instanceof final RoutePredicate<?> that)) {
             return false;
         }
 
-        final RoutePredicate<?> that = (RoutePredicate<?>) o;
         return name.equals(that.name) &&
                delegate.equals(that.delegate);
     }
