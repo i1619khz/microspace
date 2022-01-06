@@ -165,18 +165,26 @@ public final class ServerBuilder {
         checkArgument(Flags.checkMinPort(serverPort.port()),
                       "The minimum server currentMinPort number for IPv4. " +
                       "Set at 1100 to avoid returning privileged currentMinPort numbers.");
-        this.ports.add(requireNonNull(serverPort, "serverPot"));
+        ports.add(requireNonNull(serverPort, "serverPot"));
         return this;
+    }
+
+    public ServerBuilder http() {
+        return http(Flags.defaultPort());
     }
 
     public ServerBuilder http(int serverPort) {
         checkArgument(Flags.checkPort(serverPort), "port number must be available");
-        return this.port(new ServerPort(serverPort, HTTP));
+        return port(new ServerPort(serverPort, HTTP));
+    }
+
+    public ServerBuilder https() {
+        return https(Flags.defaultPort());
     }
 
     public ServerBuilder https(int serverPort) {
         checkArgument(Flags.checkPort(serverPort), "port number must be available");
-        return this.port(new ServerPort(serverPort, HTTPS));
+        return port(new ServerPort(serverPort, HTTPS));
     }
 
     /**
