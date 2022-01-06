@@ -9,27 +9,27 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <netty.version>4.1.68.Final</netty.version>
-        <errorprone.version>2.4.0</errorprone.version>
-        <guava.version>30.0-jre</guava.version>
+        <netty.version>4.1.72.Final</netty.version>
+        <errorprone.version>2.10.0</errorprone.version>
+        <guava.version>31.0.1-jre</guava.version>
         <reactivestreams.version>1.0.3</reactivestreams.version>
-        <slf4j.version>1.7.30</slf4j.version>
-        <caffeine.version>2.8.4</caffeine.version>
-        <jackson.version>2.11.1</jackson.version>
-        <reflections8.version>0.11.5</reflections8.version>
-        <bcprov-jdk15on.version>1.68</bcprov-jdk15on.version>
-        <logback.version>1.2.3</logback.version>
+        <slf4j.version>1.7.32</slf4j.version>
+        <caffeine.version>3.0.5</caffeine.version>
+        <jackson.version>2.13.1</jackson.version>
+        <reflections8.version>0.11.7</reflections8.version>
+        <bcprov-jdk15on.version>1.69</bcprov-jdk15on.version>
+        <logback.version>1.2.10</logback.version>
         <aopalliance.version>1.0</aopalliance.version>
-        <banana.version>1.2.0</banana.version>
-        <micrometer-core.version>1.6.6</micrometer-core.version>
+        <banana.version>2.1.0</banana.version>
+        <micrometer-core.version>1.8.1</micrometer-core.version>
         <reflectasm.version>1.11.9</reflectasm.version>
         <jimfs.version>1.2</jimfs.version>
         <disruptor.version>3.4.4</disruptor.version>
-        <juel.version>2.2.6</juel.version>
-        <bytebuddy.version>1.12.2</bytebuddy.version>
-        <netty-quic.version>0.0.18.Final</netty-quic.version>
-        <netty-io_using.version>0.0.8.Final</netty-io_using.version>
-        <netty-codec-http3.version>0.0.8.Final</netty-codec-http3.version>
+        <juel.version>2.2.7</juel.version>
+        <bytebuddy.version>1.12.6</bytebuddy.version>
+        <netty-quic.version>0.0.20.Final</netty-quic.version>
+        <netty-io_using.version>0.0.11.Final</netty-io_using.version>
+        <netty-codec-http3.version>0.0.11.Final</netty-codec-http3.version>
         <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
         <maven-license-plugin.version>1.9.0</maven-license-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
@@ -40,6 +40,12 @@
             <groupId>com.google.jimfs</groupId>
             <artifactId>jimfs</artifactId>
             <version>${jimfs.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.guava</groupId>
+                    <artifactId>guava</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>
@@ -60,27 +66,21 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>${guava.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.netty.incubator</groupId>
-            <artifactId>netty-incubator-transport-native-io_uring</artifactId>
-            <version>${netty-io_using.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.netty.incubator</groupId>
-            <artifactId>netty-incubator-codec-http3</artifactId>
-            <version>${netty-codec-http3.version}</version>
             <exclusions>
                 <exclusion>
-                    <groupId>io.netty.incubator</groupId>
-                    <artifactId>netty-incubator-codec-quic</artifactId>
+                    <artifactId>checker-qual</artifactId>
+                    <groupId>org.checkerframework</groupId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.google.errorprone</groupId>
+                    <artifactId>error_prone_annotations</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
         <dependency>
             <groupId>io.netty.incubator</groupId>
-            <artifactId>netty-incubator-codec-quic</artifactId>
-            <version>${netty-quic.version}</version>
+            <artifactId>netty-incubator-transport-native-io_uring</artifactId>
+            <version>${netty-io_using.version}</version>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
@@ -276,11 +276,9 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
-                    <compilerArgs>
-                        <arg>-parameters</arg>
-                    </compilerArgs>
+                    <source>17</source>
+                    <target>17</target>
+                    <compilerArgs>--enable-preview</compilerArgs>
                 </configuration>
             </plugin>
         </plugins>
