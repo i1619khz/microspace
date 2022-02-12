@@ -23,6 +23,7 @@
  */
 package io.microspace.server;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -45,6 +46,7 @@ public final class ServerConfig {
     private final boolean useSsl;
     private final boolean useEpoll;
     private final boolean useSession;
+    private final boolean useIoUsing;
     private final boolean shutdownWorkerGroupOnStop;
     private final String bannerText;
     private final String bannerFont;
@@ -69,8 +71,8 @@ public final class ServerConfig {
     private final long maxConnectionAgeMillis;
     private final long http2MaxHeaderListSize;
     private final long http2MaxStreamsPerConnection;
-    private final long stopQuietPeriod;
-    private final long stopTimeout;
+    private final Duration gracefulShutdownQuietPeriod;
+    private final Duration gracefulShutdownTimeout;
     private final Class<?> bootCls;
     private final String[] args;
     private final List<ServiceConfig> serviceConfigs;
@@ -84,13 +86,13 @@ public final class ServerConfig {
                  ExecutorService startStopExecutor,
                  String bannerText, String bannerFont, String sessionKey, String viewSuffix,
                  String templateFolder, String serverThreadName, String profiles,
-                 boolean useSession, List<ServerPort> ports,
+                 boolean useSession, boolean useIoUsing, List<ServerPort> ports,
                  int maxNumConnections, int http2InitialConnectionWindowSize, int http2InitialStreamWindowSize,
                  int http2MaxFrameSize, int http1MaxInitialLineLength, int http1MaxHeaderSize,
                  int http1MaxChunkSize, long idleTimeoutMillis, long pingIntervalMillis,
                  long maxConnectionAgeMillis, long http2MaxHeaderListSize, long http2MaxStreamsPerConnection,
-                 int acceptThreadCount, int ioThreadCount, int serverRestartCount, long stopQuietPeriod,
-                 long stopTimeout) {
+                 int acceptThreadCount, int ioThreadCount, int serverRestartCount, Duration gracefulShutdownQuietPeriod,
+                 Duration gracefulShutdownTimeout) {
         this.serviceConfigs = serviceConfigs;
         this.exceptionServices = exceptionServices;
         this.meterRegistry = meterRegistry;
@@ -111,6 +113,7 @@ public final class ServerConfig {
         this.serverThreadName = serverThreadName;
         this.profiles = profiles;
         this.useSession = useSession;
+        this.useIoUsing = useIoUsing;
         this.ports = ports;
         this.maxNumConnections = maxNumConnections;
         this.http2InitialConnectionWindowSize = http2InitialConnectionWindowSize;
@@ -127,8 +130,8 @@ public final class ServerConfig {
         this.acceptThreadCount = acceptThreadCount;
         this.ioThreadCount = ioThreadCount;
         this.serverRestartCount = serverRestartCount;
-        this.stopQuietPeriod = stopQuietPeriod;
-        this.stopTimeout = stopTimeout;
+        this.gracefulShutdownQuietPeriod = gracefulShutdownQuietPeriod;
+        this.gracefulShutdownTimeout = gracefulShutdownTimeout;
     }
 
     public Class<?> bootCls() {
@@ -263,12 +266,12 @@ public final class ServerConfig {
         return meterRegistry;
     }
 
-    public long stopQuietPeriod() {
-        return stopQuietPeriod;
+    public Duration gracefulShutdownQuietPeriod() {
+        return gracefulShutdownQuietPeriod;
     }
 
-    public long stopTimeout() {
-        return stopTimeout;
+    public Duration gracefulShutdownTimeout() {
+        return gracefulShutdownTimeout;
     }
 
     public Map<Class<? extends Throwable>, ExceptionHandlerFunction> exceptionServices() {
@@ -280,6 +283,25 @@ public final class ServerConfig {
     }
 
     public boolean shutdownWorkerGroupOnStop() {
-        return false;
+        return shutdownWorkerGroupOnStop;
+    }
+
+    public boolean useIoUsing() {
+        return useIoUsing;
+    }
+
+    static Duration validateNonNegative(Duration duration, String fieldName) {
+        if (duration.isNegative()) {
+            throw new IllegalArgumentException(fieldName + ": " + duration + " (expected: >= 0)");
+        }
+        return duration;
+    }
+
+    static void validateGreaterThanOrEqual(Duration larger, String largerFieldName,
+                                           Duration smaller, String smallerFieldName) {
+        if (larger.compareTo(smaller) < 0) {
+            throw new IllegalArgumentException(largerFieldName + " must be greater than or equal to" +
+                                               smallerFieldName);
+        }
     }
 }

@@ -28,6 +28,8 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.microspace.internal.Flags.defaultMaxRequestLength;
 import static io.microspace.internal.Flags.defaultRequestTimeoutMillis;
+import static io.microspace.server.ServerConfig.validateGreaterThanOrEqual;
+import static io.microspace.server.ServerConfig.validateNonNegative;
 import static io.microspace.server.SessionProtocol.HTTP;
 import static io.microspace.server.SessionProtocol.HTTPS;
 import static io.microspace.server.SessionProtocol.PROXY;
@@ -58,7 +60,7 @@ import com.google.common.collect.Sets;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.microspace.context.banner.BannerPrinter;
-import io.microspace.context.banner.MicrospaceBannerPrinter;
+import io.microspace.context.banner.DefaultBannerPrinter;
 import io.microspace.internal.Flags;
 import io.microspace.internal.UncheckedFnKit;
 import io.microspace.server.annotation.ExceptionHandlerFunction;
@@ -92,18 +94,19 @@ public final class ServerBuilder {
     private long http2MaxHeaderListSize = Flags.defaultHttp2MaxHeaderListSize();
     private long http2MaxStreamsPerConnection = Flags.defaultHttp2MaxStreamsPerConnection();
     private int http2MaxFrameSize = Flags.defaultHttp2MaxFrameSize();
-    private long stopQuietPeriod = Flags.defaultStopQuietPeriod();
-    private long stopTimeout = Flags.defaultStopTimeout();
+    private Duration gracefulShutdownQuietPeriod = Duration.ofMillis(Flags.defaultShutdownQuietPeriod());
+    private Duration gracefulShutdownTimeout = Duration.ofMillis(Flags.defaultShutdownTimeout());
     private int acceptThreadCount = Flags.defaultAcceptThreadCount();
     private int ioThreadCount = Flags.defaultIoThreadCount();
     private int serverRestartCount = Flags.defaultServerRestartCount();
     private boolean shutdownWorkerGroupOnStop = Flags.defaultShutdownWorkerGroupOnStop();
     private ExecutorService startStopExecutor = GlobalEventExecutor.INSTANCE;
-    private BannerPrinter bannerPrinter = new MicrospaceBannerPrinter();
+    private BannerPrinter bannerPrinter = new DefaultBannerPrinter();
     private List<ServerPort> ports = new ArrayList<>();
     private boolean useSsl = Flags.useSsl();
     private boolean useEpoll = Flags.useEpoll();
     private boolean useSession = Flags.useSession();
+    private boolean useIoUsing = Flags.useIoUsing();
     private String bannerText = Flags.defaultBannerText();
     private String bannerFont = Flags.defaultBannerFont();
     private String sessionKey = Flags.defaultSessionKey();
@@ -240,6 +243,17 @@ public final class ServerBuilder {
      */
     public ServerBuilder useSession(boolean enable) {
         this.useSession = enable;
+        return this;
+    }
+
+    /**
+     * Set io_using open state, the default is close
+     *
+     * @param enable Whether to open the io_using
+     * @return this
+     */
+    public ServerBuilder useIoUsing(boolean enable) {
+        this.useIoUsing = enable;
         return this;
     }
 
@@ -579,13 +593,39 @@ public final class ServerBuilder {
         return this;
     }
 
-    public ServerBuilder stopQuietPeriod(long stopQuietPeriod) {
-        this.stopQuietPeriod = stopQuietPeriod;
-        return this;
+    /**
+     * Sets the amount of time to wait after calling {@link Server#stop()} for
+     * requests to go away before actually shutting down.
+     *
+     * @param quietPeriodMillis the number of milliseconds to wait for active
+     *                          requests to go end before shutting down. 0 means the server will
+     *                          stop right away without waiting.
+     * @param timeoutMillis the number of milliseconds to wait before shutting down the server regardless of
+     *                      active requests. This should be set to a time greater than {@code quietPeriodMillis}
+     *                      to ensure the server shuts down even if there is a stuck request.
+     */
+    public ServerBuilder gracefulShutdownTimeoutMillis(long quietPeriodMillis, long timeoutMillis) {
+        return gracefulShutdownTimeout(Duration.ofMillis(quietPeriodMillis), Duration.ofMillis(timeoutMillis));
     }
 
-    public ServerBuilder stopTimeout(long stopTimeout) {
-        this.stopTimeout = stopTimeout;
+    /**
+     * Sets the amount of time to wait after calling {@link Server#stop()} for
+     * requests to go away before actually shutting down.
+     *
+     * @param quietPeriod the number of milliseconds to wait for active
+     *                    requests to go end before shutting down. {@link Duration#ZERO} means
+     *                    the server will stop right away without waiting.
+     * @param timeout the amount of time to wait before shutting down the server regardless of active requests.
+     *                This should be set to a time greater than {@code quietPeriod} to ensure the server
+     *                shuts down even if there is a stuck request.
+     */
+    public ServerBuilder gracefulShutdownTimeout(Duration quietPeriod, Duration timeout) {
+        requireNonNull(quietPeriod, "quietPeriod");
+        requireNonNull(timeout, "timeout");
+        gracefulShutdownQuietPeriod = validateNonNegative(quietPeriod, "quietPeriod");
+        gracefulShutdownTimeout = validateNonNegative(timeout, "timeout");
+        validateGreaterThanOrEqual(gracefulShutdownTimeout, "quietPeriod",
+                                   gracefulShutdownQuietPeriod, "timeout");
         return this;
     }
 
@@ -699,10 +739,6 @@ public final class ServerBuilder {
     }
 
     public Server build(String[] args) {
-        return build(callerClass(), args);
-    }
-
-    private Class<?> callerClass() {
         final Thread currentThread = Thread.currentThread();
         final Optional<? extends Class<?>> classOptional = Arrays
                 .stream(currentThread.getStackTrace())
@@ -710,7 +746,7 @@ public final class ServerBuilder {
                 .findFirst()
                 .map(StackTraceElement::getClassName)
                 .map(UncheckedFnKit.wrap(Class::forName));
-        return classOptional.orElse(null);
+        return build(classOptional.orElse(null), args);
     }
 
     /**
@@ -804,12 +840,13 @@ public final class ServerBuilder {
                                            args, bannerPrinter, channelOptions, childChannelOptions, useSsl,
                                            useEpoll, shutdownWorkerGroupOnStop, startStopExecutor, bannerText,
                                            bannerFont, sessionKey, viewSuffix, templateFolder, serverThreadName,
-                                           profiles, useSession, ports, maxNumConnections,
+                                           profiles, useSession, useIoUsing, ports, maxNumConnections,
                                            http2InitialConnectionWindowSize, http2InitialStreamWindowSize,
                                            http2MaxFrameSize, http1MaxInitialLineLength, http1MaxHeaderSize,
                                            http1MaxChunkSize, idleTimeoutMillis, pingIntervalMillis,
                                            maxConnectionAgeMillis, http2MaxHeaderListSize,
                                            http2MaxStreamsPerConnection, acceptThreadCount, ioThreadCount,
-                                           serverRestartCount, stopQuietPeriod, stopTimeout), null);
+                                           serverRestartCount, gracefulShutdownQuietPeriod,
+                                           gracefulShutdownTimeout), null);
     }
 }
