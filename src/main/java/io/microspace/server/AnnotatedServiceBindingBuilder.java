@@ -161,10 +161,9 @@ final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetters 
         List<ExceptionHandlerFunction> exceptionHandlerFunctions =
                 exceptionHandlerFunctionBuilder.build();
 
-        List<AnnotatedServiceElement> elements =
-                AnnotatedServiceFactory.find(
-                        pathPrefix, service, requestConverterFunctions,
-                        responseConverterFunctions, exceptionHandlerFunctions);
+        List<AnnotatedServiceElement> elements = AnnotatedServiceFactory.find(
+                pathPrefix, service, requestConverterFunctions,
+                responseConverterFunctions, exceptionHandlerFunctions);
 
         return elements.stream().map(element -> {
             return toServiceConfigBuilder(element.route(), element.service());

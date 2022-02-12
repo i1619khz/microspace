@@ -98,7 +98,7 @@ import io.microspace.server.annotation.Trace;
  * @author i1619kHz
  */
 public class AnnotatedServiceFactory {
-    private static final Logger log = LoggerFactory.getLogger(ServerBuilder.class);
+    private static final Logger logger = LoggerFactory.getLogger(ServerBuilder.class);
 
     private static final Map<Class<?>, HttpMethod> HTTP_METHOD_MAP;
     private static final Map<String, Set<String>> addedHeaders = new ConcurrentHashMap<>();
@@ -273,9 +273,8 @@ public class AnnotatedServiceFactory {
             final String name = nameGetter.apply(header);
             final String[] value = valueGetter.apply(header);
             if (addedHeaders.containsKey(name)) {
-                log.warn("The additional {} named '{}' at '{}' is set at the same {} level already;" +
-                         "ignoring.",
-                         clsAlias, name, elementAlias, level);
+                logger.warn("The additional {} named '{}' at '{}' is set at the same {} level already;" +
+                            "ignoring.", clsAlias, name, elementAlias, level);
                 return;
             }
             addedHeaders.put(name, ImmutableSet.copyOf(value));

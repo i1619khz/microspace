@@ -45,7 +45,7 @@ import io.netty.channel.ChannelOption;
  */
 @Sharable
 final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter {
-    private static final Logger log = LoggerFactory.getLogger(ConnectionLimitHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConnectionLimitHandler.class);
 
     private final int maxConnectionNum;
     private final AtomicLong numConnections = new AtomicLong(0);
@@ -90,7 +90,7 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter {
 
         final long dropped = numDroppedConnections.sumThenReset();
         if (dropped > 0) {
-            log.warn("Dropped {} connection(s) to limit the number of open connections to {}",
+            logger.warn("Dropped {} connection(s) to limit the number of open connections to {}",
                      dropped, maxConnectionNum);
         }
     }
