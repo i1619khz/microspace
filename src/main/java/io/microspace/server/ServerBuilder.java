@@ -145,7 +145,7 @@ public final class ServerBuilder {
 
     public ServerBuilder port(InetSocketAddress localAddress) {
         checkArgument(null != localAddress, "localAddress");
-        return this.port(new ServerPort(requireNonNull(localAddress)));
+        return port(new ServerPort(requireNonNull(localAddress)));
     }
 
     public ServerBuilder port(ServerPort... serverPorts) {
@@ -325,6 +325,42 @@ public final class ServerBuilder {
      */
     public ServerBuilder verboseResponses(boolean verboseResponses) {
         this.verboseResponses = verboseResponses;
+        return this;
+    }
+
+    /**
+     * Sets the amount of time to wait after calling {@link Server#stop()} for
+     * requests to go away before actually shutting down.
+     *
+     * @param quietPeriodMillis the number of milliseconds to wait for active
+     *                          requests to go end before shutting down. 0 means the server will
+     *                          stop right away without waiting.
+     * @param timeoutMillis the number of milliseconds to wait before shutting down the server regardless of
+     *                      active requests. This should be set to a time greater than {@code quietPeriodMillis}
+     *                      to ensure the server shuts down even if there is a stuck request.
+     */
+    public ServerBuilder gracefulShutdownTimeoutMillis(long quietPeriodMillis, long timeoutMillis) {
+        return gracefulShutdownTimeout(Duration.ofMillis(quietPeriodMillis), Duration.ofMillis(timeoutMillis));
+    }
+
+    /**
+     * Sets the amount of time to wait after calling {@link Server#stop()} for
+     * requests to go away before actually shutting down.
+     *
+     * @param quietPeriod the number of milliseconds to wait for active
+     *                    requests to go end before shutting down. {@link Duration#ZERO} means
+     *                    the server will stop right away without waiting.
+     * @param timeout the amount of time to wait before shutting down the server regardless of active requests.
+     *                This should be set to a time greater than {@code quietPeriod} to ensure the server
+     *                shuts down even if there is a stuck request.
+     */
+    public ServerBuilder gracefulShutdownTimeout(Duration quietPeriod, Duration timeout) {
+        requireNonNull(quietPeriod, "quietPeriod");
+        requireNonNull(timeout, "timeout");
+        gracefulShutdownQuietPeriod = validateNonNegative(quietPeriod, "quietPeriod");
+        gracefulShutdownTimeout = validateNonNegative(timeout, "timeout");
+        validateGreaterThanOrEqual(gracefulShutdownTimeout, "quietPeriod",
+                                   gracefulShutdownQuietPeriod, "timeout");
         return this;
     }
 
@@ -590,42 +626,6 @@ public final class ServerBuilder {
         checkArgument(Strings.isNullOrEmpty(this.viewSuffix),
                       "viewSuffix was already set to %s", this.viewSuffix);
         this.viewSuffix = requireNonNull(viewSuffix);
-        return this;
-    }
-
-    /**
-     * Sets the amount of time to wait after calling {@link Server#stop()} for
-     * requests to go away before actually shutting down.
-     *
-     * @param quietPeriodMillis the number of milliseconds to wait for active
-     *                          requests to go end before shutting down. 0 means the server will
-     *                          stop right away without waiting.
-     * @param timeoutMillis the number of milliseconds to wait before shutting down the server regardless of
-     *                      active requests. This should be set to a time greater than {@code quietPeriodMillis}
-     *                      to ensure the server shuts down even if there is a stuck request.
-     */
-    public ServerBuilder gracefulShutdownTimeoutMillis(long quietPeriodMillis, long timeoutMillis) {
-        return gracefulShutdownTimeout(Duration.ofMillis(quietPeriodMillis), Duration.ofMillis(timeoutMillis));
-    }
-
-    /**
-     * Sets the amount of time to wait after calling {@link Server#stop()} for
-     * requests to go away before actually shutting down.
-     *
-     * @param quietPeriod the number of milliseconds to wait for active
-     *                    requests to go end before shutting down. {@link Duration#ZERO} means
-     *                    the server will stop right away without waiting.
-     * @param timeout the amount of time to wait before shutting down the server regardless of active requests.
-     *                This should be set to a time greater than {@code quietPeriod} to ensure the server
-     *                shuts down even if there is a stuck request.
-     */
-    public ServerBuilder gracefulShutdownTimeout(Duration quietPeriod, Duration timeout) {
-        requireNonNull(quietPeriod, "quietPeriod");
-        requireNonNull(timeout, "timeout");
-        gracefulShutdownQuietPeriod = validateNonNegative(quietPeriod, "quietPeriod");
-        gracefulShutdownTimeout = validateNonNegative(timeout, "timeout");
-        validateGreaterThanOrEqual(gracefulShutdownTimeout, "quietPeriod",
-                                   gracefulShutdownQuietPeriod, "timeout");
         return this;
     }
 
