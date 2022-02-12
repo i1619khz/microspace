@@ -51,6 +51,6 @@ public class ServerThreadNamer implements ThreadFactory {
     @Override
     public Thread newThread(Runnable runnable) {
         checkNotNull(runnable, "runnable");
-        return new Thread(runnable, prefix + "thread-" + threadNumber.intValue());
+        return new Thread(runnable, prefix + "-thread-" + threadNumber.intValue());
     }
 }
