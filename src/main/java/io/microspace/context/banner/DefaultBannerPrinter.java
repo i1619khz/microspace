@@ -24,19 +24,20 @@
 package io.microspace.context.banner;
 
 import io.leego.banana.BananaUtils;
+import io.leego.banana.Font;
 import io.microspace.context.ansi.AnsiColor;
 import io.microspace.context.ansi.AnsiOutput;
 
 /**
  * @author i1619kHz
  */
-public class MicrospaceBannerPrinter extends AbstractBannerPrinter {
+public class DefaultBannerPrinter extends AbstractBannerPrinter {
     private final String MICRO_SPACE_VERSION = "(v1.0.0 RELEASE)";
     private final String MICRO_SPACE_FRAMEWORK = ":: microspace framework ::";
 
     @Override
     public void prePrintBannerText(String bannerText, String bannerFont) {
-        System.out.println(BananaUtils.bananaify(bannerText, bannerFont));
+        System.out.println(BananaUtils.bananaify(bannerText, Font.get(bannerFont)));
     }
 
     @Override
