@@ -35,7 +35,11 @@ public class ServerThreadNamer implements ThreadFactory {
     private final String prefix;
     private final LongAdder threadNumber = new LongAdder();
 
-    public ServerThreadNamer(String prefix) {
+    public static ServerThreadNamer withPrefix(String threadName) {
+        return new ServerThreadNamer(threadName);
+    }
+
+    private ServerThreadNamer(String prefix) {
         this.threadNumber.add(1);
         this.prefix = prefix;
     }

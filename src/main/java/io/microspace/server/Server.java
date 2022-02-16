@@ -383,7 +383,7 @@ public final class Server {
     }
 
     private ServerThreadNamer withThreadName(String prefix) {
-        return new ServerThreadNamer(eventLoopGroupName(config.ports().get(0), prefix));
+        return ServerThreadNamer.withPrefix(eventLoopGroupName(config.ports().get(0), prefix));
     }
 
     private Class<? extends ServerChannel> transportChannel() {
