@@ -9,16 +9,17 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <netty.version>4.1.72.Final</netty.version>
-        <errorprone.version>2.10.0</errorprone.version>
-        <guava.version>31.0.1-jre</guava.version>
+        <reflectasm.version>1.11.9</reflectasm.version>
+        <netty.version>4.1.75.Final</netty.version>
+        <errorprone.version>2.12.1</errorprone.version>
+        <guava.version>31.1-jre</guava.version>
         <reactivestreams.version>1.0.3</reactivestreams.version>
-        <slf4j.version>1.7.32</slf4j.version>
-        <caffeine.version>3.0.5</caffeine.version>
-        <jackson.version>2.13.1</jackson.version>
+        <slf4j.version>1.7.36</slf4j.version>
+        <caffeine.version>3.0.6</caffeine.version>
+        <jackson.version>2.13.2.2</jackson.version>
         <reflections8.version>0.11.7</reflections8.version>
-        <bcprov-jdk15on.version>1.69</bcprov-jdk15on.version>
-        <logback.version>1.2.10</logback.version>
+        <bcprov-jdk15on.version>1.70</bcprov-jdk15on.version>
+        <logback.version>1.2.11</logback.version>
         <aopalliance.version>1.0</aopalliance.version>
         <banana.version>2.1.0</banana.version>
         <micrometer-core.version>1.8.1</micrometer-core.version>
@@ -26,9 +27,11 @@
         <jimfs.version>1.2</jimfs.version>
         <disruptor.version>3.4.4</disruptor.version>
         <juel.version>2.2.7</juel.version>
-        <bytebuddy.version>1.12.6</bytebuddy.version>
+        <sql2o.version>1.6.0</sql2o.version>
+        <hikaricp.version>5.0.1</hikaricp.version>
+        <bytebuddy.version>1.12.9</bytebuddy.version>
         <netty-quic.version>0.0.20.Final</netty-quic.version>
-        <netty-io_using.version>0.0.11.Final</netty-io_using.version>
+        <netty-io_using.version>0.0.13.Final</netty-io_using.version>
         <netty-codec-http3.version>0.0.11.Final</netty-codec-http3.version>
         <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
         <maven-license-plugin.version>1.9.0</maven-license-plugin.version>
@@ -196,6 +199,26 @@
             <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy</artifactId>
             <version>${bytebuddy.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.googlecode.concurrent-trees</groupId>
+            <artifactId>concurrent-trees</artifactId>
+            <version>2.6.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.classgraph</groupId>
+            <artifactId>classgraph</artifactId>
+            <version>4.8.143</version>
+        </dependency>
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>${hikaricp.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.sql2o</groupId>
+            <artifactId>sql2o</artifactId>
+            <version>${sql2o.version}</version>
         </dependency>
     </dependencies>
 
