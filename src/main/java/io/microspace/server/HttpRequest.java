@@ -23,21 +23,9 @@
  */
 package io.microspace.server;
 
-import java.time.Duration;
-import java.util.function.Function;
+/**
+ * @author i1619kHz
+ */
+public interface HttpRequest extends Request {
 
-interface ServiceConfigSetters {
-    ServiceConfigSetters decorator(Function<? super HttpService, ? extends HttpService> decorator);
-
-    ServiceConfigSetters requestTimeout(Duration requestTimeout);
-
-    ServiceConfigSetters requestTimeoutMillis(long requestTimeoutMillis);
-
-    ServiceConfigSetters maxRequestLength(long maxRequestLength);
-
-    ServiceConfigSetters verboseResponses(boolean verboseResponses);
-
-    ServiceConfigSetters defaultServiceName(String defaultServiceName);
-
-    ServiceConfigSetters defaultLogName(String defaultLogName);
 }

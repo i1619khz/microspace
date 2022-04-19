@@ -35,7 +35,7 @@ import com.google.common.base.MoreObjects;
 /**
  * @author i1619kHz
  */
-final class ServiceConfigBuilder implements ServiceConfigSetters {
+final class ServiceConfigBuilder implements ServiceConfigSetter {
     private final Route route;
     private final HttpService service;
 
@@ -56,7 +56,7 @@ final class ServiceConfigBuilder implements ServiceConfigSetters {
     }
 
     @Override
-    public ServiceConfigSetters decorator(Function<? super HttpService, ? extends HttpService> decorator) {
+    public ServiceConfigSetter decorator(Function<? super HttpService, ? extends HttpService> decorator) {
         throw new UnsupportedOperationException();
     }
 
@@ -84,13 +84,13 @@ final class ServiceConfigBuilder implements ServiceConfigSetters {
     }
 
     @Override
-    public ServiceConfigSetters defaultServiceName(String defaultServiceName) {
+    public ServiceConfigSetter defaultServiceName(String defaultServiceName) {
         this.defaultServiceName = requireNonNull(defaultServiceName, "defaultServiceName");
         return this;
     }
 
     @Override
-    public ServiceConfigSetters defaultLogName(String defaultLogName) {
+    public ServiceConfigSetter defaultLogName(String defaultLogName) {
         this.defaultLogName = requireNonNull(defaultLogName, "defaultLogName");
         return this;
     }

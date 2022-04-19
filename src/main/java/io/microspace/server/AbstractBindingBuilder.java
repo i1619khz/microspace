@@ -50,7 +50,7 @@ import com.google.common.collect.Sets;
 /**
  * An abstract builder class for binding something to a {@link Route} fluently.
  */
-abstract class AbstractBindingBuilder extends AbstractServiceConfigSetters {
+abstract class AbstractBindingBuilder extends AbstractServiceConfigSetter {
     private final List<RoutePredicate<QueryParams>> paramPredicates = new ArrayList<>();
     private final List<RoutePredicate<HttpHeaders>> headerPredicates = new ArrayList<>();
     private Set<HttpMethod> methods = ImmutableSet.of();

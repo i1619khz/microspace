@@ -33,7 +33,7 @@ import com.google.common.base.MoreObjects;
 /**
  * @author i1619kHz
  */
-abstract class AbstractServiceConfigSetters implements ServiceConfigSetters {
+abstract class AbstractServiceConfigSetter implements ServiceConfigSetter {
     private String defaultServiceName;
     private String defaultLogName;
     private Long requestTimeoutMillis;
@@ -42,42 +42,42 @@ abstract class AbstractServiceConfigSetters implements ServiceConfigSetters {
     private Function<? super HttpService, ? extends HttpService> decorator;
 
     @Override
-    public ServiceConfigSetters decorator(Function<? super HttpService, ? extends HttpService> decorator) {
+    public ServiceConfigSetter decorator(Function<? super HttpService, ? extends HttpService> decorator) {
         this.decorator = requireNonNull(decorator, "decorator");
         return this;
     }
 
     @Override
-    public ServiceConfigSetters requestTimeout(Duration requestTimeout) {
+    public ServiceConfigSetter requestTimeout(Duration requestTimeout) {
         return requestTimeoutMillis(requireNonNull(requestTimeout, "requestTimeout").toMillis());
     }
 
     @Override
-    public ServiceConfigSetters requestTimeoutMillis(long requestTimeoutMillis) {
+    public ServiceConfigSetter requestTimeoutMillis(long requestTimeoutMillis) {
         this.requestTimeoutMillis = requestTimeoutMillis;
         return this;
     }
 
     @Override
-    public ServiceConfigSetters maxRequestLength(long maxRequestLength) {
+    public ServiceConfigSetter maxRequestLength(long maxRequestLength) {
         this.maxRequestLength = maxRequestLength;
         return this;
     }
 
     @Override
-    public ServiceConfigSetters verboseResponses(boolean verboseResponses) {
+    public ServiceConfigSetter verboseResponses(boolean verboseResponses) {
         this.verboseResponses = verboseResponses;
         return this;
     }
 
     @Override
-    public ServiceConfigSetters defaultServiceName(String defaultServiceName) {
+    public ServiceConfigSetter defaultServiceName(String defaultServiceName) {
         this.defaultServiceName = defaultServiceName;
         return this;
     }
 
     @Override
-    public ServiceConfigSetters defaultLogName(String defaultLogName) {
+    public ServiceConfigSetter defaultLogName(String defaultLogName) {
         this.defaultLogName = defaultLogName;
         return this;
     }

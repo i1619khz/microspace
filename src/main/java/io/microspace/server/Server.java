@@ -414,7 +414,7 @@ public final class Server {
         return isRunning.get();
     }
 
-    public ServerConfig config() {
+    public ServerConfig serverConfig() {
         return config;
     }
 

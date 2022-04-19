@@ -24,6 +24,7 @@
 package io.microspace.server;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.microspace.internal.Flags.defaultMaxRequestLength;
@@ -44,7 +45,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -62,6 +62,7 @@ import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.microspace.context.banner.BannerPrinter;
 import io.microspace.context.banner.DefaultBannerPrinter;
 import io.microspace.internal.Flags;
+import io.microspace.internal.SystemInfo;
 import io.microspace.internal.UncheckedFnKit;
 import io.microspace.server.annotation.ExceptionHandlerFunction;
 import io.microspace.server.annotation.RequestConverterFunction;
@@ -76,9 +77,8 @@ public final class ServerBuilder {
     private static final long MIN_PING_INTERVAL_MILLIS = 1000L;
     private static final long MIN_MAX_CONNECTION_AGE_MILLIS = 1_000L;
 
-    private final Map<Class<? extends Throwable>,
-            ExceptionHandlerFunction> exceptionServices = new ConcurrentHashMap<>();
-    private final List<ServiceConfigSetters> serviceConfigSetters = new ArrayList<>();
+    private final VirtualHostBuilder defaultVirtualHostBuilder = new VirtualHostBuilder(this);
+    private final List<ServiceConfigSetter> serviceConfigSetters = new ArrayList<>();
     private final Map<ChannelOption<?>, Object> channelOptions = new HashMap<>();
     private final Map<ChannelOption<?>, Object> childChannelOptions = new HashMap<>();
     private MeterRegistry meterRegistry = new CompositeMeterRegistry();
@@ -485,6 +485,10 @@ public final class ServerBuilder {
         return route().trace(pathPrefix).build(service);
     }
 
+    public ServerBuilder service(Route route, HttpService service) {
+        return route().route(route).build(service);
+    }
+
     public ServerBuilder service(String pathPattern, HttpService service) {
         return route().pathPrefix(pathPattern).methods(HttpMethod.knownMethods()).build(service);
     }
@@ -495,10 +499,6 @@ public final class ServerBuilder {
 
     public ServerBuilder service(String pathPattern, HttpService service, Iterable<HttpMethod> httpMethods) {
         return route().pathPrefix(pathPattern).methods(httpMethods).build(service);
-    }
-
-    public ServerBuilder service(Route route, HttpService service) {
-        return route().route(route).build(service);
     }
 
     public ServerBuilder annotatedService(Object service) {
@@ -591,20 +591,30 @@ public final class ServerBuilder {
                                  .build(service);
     }
 
-    ServerBuilder serviceConfigBuilder(ServiceConfigSetters ServiceConfigSetters) {
-        serviceConfigSetters.add(ServiceConfigSetters);
+    ServerBuilder serviceConfigBuilder(ServiceConfigSetter serviceConfigSetter) {
+        requireNonNull(serviceConfigSetter, "serviceConfigSetters");
+        serviceConfigSetters.add(serviceConfigSetter);
         return this;
+    }
+
+    public VirtualHostBuilder virtualHostName(String virtualHostName) {
+        checkNotNull(virtualHostName, "virtualHostName can't be null");
+        return defaultVirtualHostBuilder;
     }
 
     private ServiceBindingBuilder route() {
         return new ServiceBindingBuilder(this);
     }
 
+    public VirtualHostBuilder defaultVirtualHost() {
+        return virtualHostName(SystemInfo.hostname());
+    }
+
     private AnnotatedServiceBindingBuilder annotatedService() {
         return new AnnotatedServiceBindingBuilder(this);
     }
 
-    private List<ServiceConfigSetters> serviceConfigSetters() {
+    private List<ServiceConfigSetter> serviceConfigSetters() {
         return serviceConfigSetters;
     }
 
@@ -836,7 +846,7 @@ public final class ServerBuilder {
             }
         }
 
-        return new Server(new ServerConfig(serviceConfigs, exceptionServices, meterRegistry, bootCls,
+        return new Server(new ServerConfig(serviceConfigs, Map.of(), meterRegistry, bootCls,
                                            args, bannerPrinter, channelOptions, childChannelOptions, useSsl,
                                            useEpoll, shutdownWorkerGroupOnStop, startStopExecutor, bannerText,
                                            bannerFont, sessionKey, viewSuffix, templateFolder, serverThreadName,

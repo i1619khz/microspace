@@ -39,7 +39,7 @@ import io.microspace.server.annotation.ResponseConverterFunction;
 /**
  * @author i1619kHz
  */
-final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetters {
+final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetter {
     private final Builder<ExceptionHandlerFunction> exceptionHandlerFunctionBuilder = ImmutableList.builder();
     private final Builder<RequestConverterFunction> requestConverterFunctionBuilder = ImmutableList.builder();
     private final Builder<ResponseConverterFunction> responseConverterFunctionBuilder = ImmutableList.builder();
@@ -119,7 +119,7 @@ final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetters 
     }
 
     @Override
-    public ServiceConfigSetters requestTimeoutMillis(long requestTimeoutMillis) {
+    public ServiceConfigSetter requestTimeoutMillis(long requestTimeoutMillis) {
         super.requestTimeoutMillis(requestTimeoutMillis);
         return this;
     }
