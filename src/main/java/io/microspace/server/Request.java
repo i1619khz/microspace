@@ -21,23 +21,67 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server.cors;
+package io.microspace.server;
 
-import java.util.function.Supplier;
+import java.net.URL;
 
 /**
  * @author i1619kHz
  */
-record ConstantValueSupplier(Object value) implements Supplier<Object> {
-    static final ConstantValueSupplier ZERO = new ConstantValueSupplier("0");
+public interface Request {
+    Cookie cookie(String cookieKey);
 
-    @Override
-    public Object get() {
-        return value;
-    }
+    Iterable<Cookie> cookies();
 
-    @Override
-    public String toString() {
-        return String.valueOf(value);
-    }
+    Header header();
+
+    Iterable<Header> headers();
+
+    String uri();
+
+    String origin();
+
+    String href();
+
+    String method();
+
+    String path();
+
+    QueryParams query();
+
+    String queryString();
+
+    String search();
+
+    String host();
+
+    String hostname();
+
+    URL url();
+
+    boolean fresh();
+
+    boolean stale();
+
+    boolean idempotent();
+
+    boolean secure();
+
+    String protocol();
+
+    String ip();
+
+    String[] ips();
+
+    String[] subdomains();
+
+    String[] accepts();
+
+    String[] acceptsEncodings();
+
+    String[] acceptsCharsets();
+
+    String[] acceptsLanguages();
+
+    String contentType(CharSequence type);
 }

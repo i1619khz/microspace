@@ -110,10 +110,11 @@ final class AnnotatedService implements HttpService {
     public HttpResponse serve(Request request) {
         try {
             Object invoke = method.invoke(target);
+            return HttpResponse.of((String) invoke);
         } catch (IllegalAccessException | InvocationTargetException e) {
             e.printStackTrace();
         }
-        return HttpResponse.of("11");
+        return HttpResponse.of("");
     }
 
     @Override

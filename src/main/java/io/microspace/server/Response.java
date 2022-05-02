@@ -21,23 +21,41 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server.cors;
+package io.microspace.server;
 
-import java.util.function.Supplier;
+import java.time.LocalDateTime;
 
 /**
  * @author i1619kHz
  */
-record ConstantValueSupplier(Object value) implements Supplier<Object> {
-    static final ConstantValueSupplier ZERO = new ConstantValueSupplier("0");
+public interface Response {
+    int status();
 
-    @Override
-    public Object get() {
-        return value;
-    }
+    String message();
 
-    @Override
-    public String toString() {
-        return String.valueOf(value);
-    }
+    String body();
+
+    int length();
+
+    boolean headerSent();
+
+    void vary(CharSequence field);
+
+    void redirect(CharSequence url, CharSequence alt);
+
+    void attachment(CharSequence filename);
+
+    String type();
+
+    LocalDateTime lastModified();
+
+    String etag();
+
+    void header(CharSequence key, CharSequence value);
+
+    void remove(CharSequence key);
+
+    boolean writable();
+
+    void flushHeaders();
 }

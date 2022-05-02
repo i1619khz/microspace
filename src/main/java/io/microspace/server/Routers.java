@@ -21,23 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server.cors;
-
-import java.util.function.Supplier;
+package io.microspace.server;
 
 /**
  * @author i1619kHz
  */
-record ConstantValueSupplier(Object value) implements Supplier<Object> {
-    static final ConstantValueSupplier ZERO = new ConstantValueSupplier("0");
-
-    @Override
-    public Object get() {
-        return value;
+class Routers {
+    public static Routers ofServer(ServerConfig serverConfig) {
+        return new Routers();
     }
 
-    @Override
-    public String toString() {
-        return String.valueOf(value);
+    public ServiceConfig findServiceConfig(String pathPrefix) {
+        return (ServiceConfig) new Object();
     }
 }

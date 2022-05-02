@@ -21,23 +21,71 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server.cors;
+package io.microspace.server;
 
-import java.util.function.Supplier;
+import java.util.List;
+
+import javax.annotation.Nullable;
 
 /**
  * @author i1619kHz
  */
-record ConstantValueSupplier(Object value) implements Supplier<Object> {
-    static final ConstantValueSupplier ZERO = new ConstantValueSupplier("0");
-
+final class DefaultRouterContext implements RouteContext {
     @Override
-    public Object get() {
-        return value;
+    public String hostname() {
+        return null;
     }
 
     @Override
-    public String toString() {
-        return String.valueOf(value);
+    public HttpMethod method() {
+        return null;
+    }
+
+    @Override
+    public String path() {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public String query() {
+        return null;
+    }
+
+    @Override
+    public QueryParams params() {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public MediaType contentType() {
+        return null;
+    }
+
+    @Override
+    public List<MediaType> acceptTypes() {
+        return null;
+    }
+
+    @Override
+    public RequestHeaders headers() {
+        return null;
+    }
+
+    @Override
+    public void deferStatusException(HttpStatusException cause) {
+
+    }
+
+    @Nullable
+    @Override
+    public HttpStatusException deferredStatusException() {
+        return null;
+    }
+
+    @Override
+    public boolean isCorsPreflight() {
+        return false;
     }
 }

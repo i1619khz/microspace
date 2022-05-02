@@ -21,23 +21,21 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server.cors;
+package io.microspace.server;
 
-import java.util.function.Supplier;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.HttpObject;
 
 /**
  * @author i1619kHz
  */
-record ConstantValueSupplier(Object value) implements Supplier<Object> {
-    static final ConstantValueSupplier ZERO = new ConstantValueSupplier("0");
-
+final class Http1RequestDecoder extends ChannelDuplexHandler {
     @Override
-    public Object get() {
-        return value;
-    }
-
-    @Override
-    public String toString() {
-        return String.valueOf(value);
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+        if (!(msg instanceof HttpObject)) {
+            ctx.fireChannelRead(msg);
+            return;
+        }
     }
 }

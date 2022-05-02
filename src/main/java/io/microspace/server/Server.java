@@ -391,9 +391,9 @@ public final class Server {
     }
 
     private String eventLoopGroupName(ServerPort port, String prefix) {
-        final InetSocketAddress localAddr = port.localAddress();
+        final InetSocketAddress localAddress = port.localAddress();
         final String localHostName =
-                localAddr.getAddress().isAnyLocalAddress() ? "*" : localAddr.getHostString();
+                localAddress.getAddress().isAnyLocalAddress() ? "*" : localAddress.getHostString();
 
         // e.g. 'microspace-boss-http-*:8080'
         //      'microspace-boss-http-127.0.0.1:8443'
@@ -401,7 +401,8 @@ public final class Server {
         final String protocolNames = port.protocols().stream()
                                          .map(SessionProtocol::uriText)
                                          .collect(Collectors.joining("+"));
-        return "microspace-" + prefix + "-" + protocolNames + '-' + localHostName + ':' + localAddr.getPort();
+        return "microspace-" + prefix + "-" + protocolNames + '-' + localHostName + ':'
+               + localAddress.getPort();
     }
 
     private EventLoopGroup createEventLoopGroup(String threadName) {

@@ -21,23 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server.cors;
+package io.microspace.server;
 
-import java.util.function.Supplier;
+import io.netty.channel.ChannelHandler.Sharable;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
 
 /**
  * @author i1619kHz
  */
-record ConstantValueSupplier(Object value) implements Supplier<Object> {
-    static final ConstantValueSupplier ZERO = new ConstantValueSupplier("0");
+@Sharable
+class ReadSuppressingHandler extends ChannelOutboundHandlerAdapter {
+    ReadSuppressingHandler() {}
 
     @Override
-    public Object get() {
-        return value;
+    public final void read(ChannelHandlerContext ctx) throws Exception {
+        if (ctx.channel().config().isAutoRead()) {
+            super.read(ctx);
+        }
     }
 
     @Override
-    public String toString() {
-        return String.valueOf(value);
+    public final boolean isSharable() {
+        // All subclasses must also be sharable.
+        return true;
     }
 }

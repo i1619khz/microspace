@@ -45,8 +45,7 @@ import io.microspace.server.annotation.Cors;
 import io.netty.util.AsciiString;
 
 /**
- * @author WangYi
- * @since 2020/10/7
+ * @author i1619kHz
  */
 abstract class AbstractCorsPolicyBuilder {
     private final Set<String> origins;

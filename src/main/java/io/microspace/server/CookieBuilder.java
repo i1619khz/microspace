@@ -21,23 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server.cors;
+package io.microspace.server;
 
-import java.util.function.Supplier;
+import static java.util.Objects.requireNonNull;
 
 /**
  * @author i1619kHz
  */
-record ConstantValueSupplier(Object value) implements Supplier<Object> {
-    static final ConstantValueSupplier ZERO = new ConstantValueSupplier("0");
+public class CookieBuilder {
+    private final String name;
+    private final String value;
 
-    @Override
-    public Object get() {
-        return value;
+    CookieBuilder(String name, String value) {
+        this.name = requireNonNull(name, "name");
+        this.value = requireNonNull(value, "value");
     }
 
-    @Override
-    public String toString() {
-        return String.valueOf(value);
+    /**
+     * Returns a newly created {@link Cookie} with the properties set so far.
+     */
+    public Cookie build() {
+        return null;
     }
 }

@@ -21,23 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server.cors;
-
-import java.util.function.Supplier;
+package io.microspace.server;
 
 /**
  * @author i1619kHz
  */
-record ConstantValueSupplier(Object value) implements Supplier<Object> {
-    static final ConstantValueSupplier ZERO = new ConstantValueSupplier("0");
+public final class ExactPathMapping implements PathMapping {
 
     @Override
-    public Object get() {
-        return value;
-    }
-
-    @Override
-    public String toString() {
-        return String.valueOf(value);
+    public String path() {
+        return null;
     }
 }
