@@ -36,7 +36,7 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Repeatable(MatchesHeaders.class)
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target({ ElementType.TYPE, ElementType.METHOD })
 public @interface MatchesHeader {
     /**
      * The predicate which evaluates whether a request can be accepted by a service method.

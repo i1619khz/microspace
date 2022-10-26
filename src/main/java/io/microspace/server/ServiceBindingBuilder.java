@@ -194,7 +194,6 @@ public final class ServiceBindingBuilder extends AbstractBindingBuilder {
     }
 
     ServerBuilder serviceConfigBuilder(ServiceConfigBuilder serviceConfigBuilder) {
-        this.serverBuilder.serviceConfigBuilder(serviceConfigBuilder);
-        return serverBuilder;
+        return this.serverBuilder.serviceConfigBuilder(serviceConfigBuilder);
     }
 }

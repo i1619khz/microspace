@@ -23,9 +23,7 @@
  */
 package io.microspace.internal;
 
-import java.util.regex.Pattern;
-
-import io.microspace.context.banner.BannerFont;
+import io.microspace.internal.banner.BannerFont;
 import io.microspace.server.ServerPort;
 import io.microspace.server.SessionProtocol;
 
@@ -33,8 +31,6 @@ import io.microspace.server.SessionProtocol;
  * @author i1619kHz
  */
 public final class Flags {
-    private static final Pattern PROPERTIES_REGEX = Pattern.compile(".*\\.properties");
-    private static final Pattern YML_REGEX = Pattern.compile(".*\\.yml");
     private static final int DEFAULT_MAX_CONNECTION_COUNT = Integer.MAX_VALUE;
     private static final int DEFAULT_HTTP2_INITIAL_CONNECTION_WINDOWS_SIZE = 0;
     private static final int DEFAULT_HTTP2_INITIAL_STREAM_WINDOW_SIZE = 0;
@@ -66,9 +62,6 @@ public final class Flags {
     private static final boolean USE_SSL = false;
     private static final boolean USE_EPOLL = Epolls.epollIsAvailable();
     private static final int DEFAULT_PORT = 8080;
-    private static final String SSL_CERT = "";
-    private static final String SSL_PRIVATE_KEY = "";
-    private static final String SSL_PRIVATE_KEY_PASS = "";
     private static final int DEFAULT_SERVER_RESTART_COUNT = 2;
     private static final int MAX_CONNECTION_COUNT = DEFAULT_MAX_CONNECTION_COUNT;
     private static final int ACCEPT_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
@@ -86,14 +79,6 @@ public final class Flags {
 
     public static ServerPort defaultServerPort() {
         return DEFAULT_SERVER_PORT;
-    }
-
-    public static Pattern propertiesRegex() {
-        return PROPERTIES_REGEX;
-    }
-
-    public static Pattern ymlRegex() {
-        return YML_REGEX;
     }
 
     public static String defaultBannerText() {

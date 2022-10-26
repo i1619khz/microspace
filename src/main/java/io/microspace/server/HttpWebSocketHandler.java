@@ -21,13 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.server.websocket;
+package io.microspace.server;
 
 import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import io.microspace.server.HttpStatus;
+import com.google.common.base.Strings;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
@@ -39,11 +40,9 @@ import io.netty.channel.ChannelId;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpUtil;
-import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
@@ -61,14 +60,14 @@ import io.netty.util.concurrent.GlobalEventExecutor;
  * @author i1619kHz
  */
 @Sharable
-public final class WebSocketHandler extends SimpleChannelInboundHandler<Object> {
+final class HttpWebSocketHandler extends SimpleChannelInboundHandler<Object> {
     private final ChannelGroup channelGroup;
     private final ConcurrentMap<String, ChannelId> channelMap;
-    private WebSocketServerHandshaker handShaker;
+    private WebSocketServerHandshaker webSocketServerHandshaker;
 
-    public WebSocketHandler() {
+    public HttpWebSocketHandler() {
         this.channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-        this.channelMap = new ConcurrentHashMap();
+        this.channelMap = new ConcurrentHashMap<>();
     }
 
     private void addChannel(Channel channel) {
@@ -91,10 +90,10 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<Object> 
 
     @Override
     protected void channelRead0(ChannelHandlerContext channelHandlerContext, Object message) {
-        if (message instanceof FullHttpRequest) {
-            handleHttpRequest(channelHandlerContext, (FullHttpRequest) message);
+        if (message instanceof HttpRequest) {
+            handleHttpRequest(channelHandlerContext, (HttpRequest) message);
         } else if (message instanceof WebSocketFrame) {
-            handlerWebSocketFrame(channelHandlerContext, (WebSocketFrame) message);
+            handleWebSocketFrame(channelHandlerContext, (WebSocketFrame) message);
         } else {
             ReferenceCountUtil.retain(message);
             channelHandlerContext.fireChannelRead(message);
@@ -121,10 +120,10 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<Object> 
         ctx.close();
     }
 
-    private void handlerWebSocketFrame(ChannelHandlerContext context, WebSocketFrame frame) {
-        final Channel channel = getChannel(context);
+    private void handleWebSocketFrame(ChannelHandlerContext channelHandlerContext, WebSocketFrame frame) {
+        final Channel channel = getChannel(channelHandlerContext);
         if (frame instanceof CloseWebSocketFrame) {
-            handShaker.close(channel, (CloseWebSocketFrame) frame.retain());
+            webSocketServerHandshaker.close(channel, (CloseWebSocketFrame) frame.retain());
             return;
         }
         if (frame instanceof PingWebSocketFrame) {
@@ -140,36 +139,46 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<Object> 
             return;
         }
         if (!(frame instanceof TextWebSocketFrame)) {
-            throw new UnsupportedOperationException(String.format(
-                    "%s frame types not supported", frame.getClass().getName()));
-        }
-        final String date = new Date().toString();
-        final ChannelId channelId = getChannel(context).id();
-        final String request = ((TextWebSocketFrame) frame).text();
-        final String text = date + channelId + "：" + request;
-        respond(context, new TextWebSocketFrame(text));
-    }
-
-    private void handleHttpRequest(ChannelHandlerContext ctx, FullHttpRequest httpRequest) {
-        if (isWebSocketRequest(httpRequest)) {
-            final DefaultFullHttpResponse defaultFullHttpResponse = new DefaultFullHttpResponse(
-                    HttpVersion.HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
-            respond(ctx, HttpUtil.isKeepAlive(httpRequest), defaultFullHttpResponse);
+            webSocketServerHandshaker.close(channelHandlerContext.channel(), new CloseWebSocketFrame());
             return;
         }
-        final WebSocketServerHandshakerFactory wsFactory = new WebSocketServerHandshakerFactory(
-                "ws://localhost:8081/websocket", null, false);
-        handShaker = wsFactory.newHandshaker(httpRequest);
-        if (handShaker == null) {
-            WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(getChannel(ctx));
+        final String date = new Date().toString();
+        final ChannelId channelId = channel.id();
+        final String request = ((TextWebSocketFrame) frame).text();
+        final String text = date + channelId + "：" + request;
+        respond(channelHandlerContext, new TextWebSocketFrame(text));
+    }
+
+    /**
+     * Handler http request
+     *
+     * @param ctx         Netty channel context
+     * @param httpRequest An HTTP request.
+     */
+    private void handleHttpRequest(ChannelHandlerContext ctx,
+                                   io.netty.handler.codec.http.HttpRequest httpRequest) {
+        final DefaultFullHttpRequest fullHttpRequest = new DefaultFullHttpRequest(
+                httpRequest.protocolVersion(), httpRequest.method(), httpRequest.uri());
+        if (isWebSocketRequest(httpRequest)) {
+            final WebSocketServerHandshakerFactory websocketFactory =
+                    new WebSocketServerHandshakerFactory(httpRequest.uri(),
+                                                         null, true);
+            webSocketServerHandshaker = websocketFactory.newHandshaker(httpRequest);
+            if (webSocketServerHandshaker == null) {
+                WebSocketServerHandshakerFactory.sendUnsupportedVersionResponse(ctx.channel());
+            } else {
+                webSocketServerHandshaker.handshake(ctx.channel(), httpRequest);
+            }
         } else {
-            handShaker.handshake(getChannel(ctx), httpRequest);
+            ReferenceCountUtil.retain(httpRequest);
+            ctx.fireChannelRead(httpRequest);
         }
     }
 
-    private boolean isWebSocketRequest(FullHttpRequest httpRequest) {
-        return (!httpRequest.decoderResult().isSuccess() ||
-                (!"websocket".equals(httpRequest.headers().get("Upgrade"))));
+    private boolean isWebSocketRequest(HttpRequest httpRequest) {
+        String uri = Strings.commonPrefix(httpRequest.uri(), "?");
+        return httpRequest.decoderResult().isSuccess() && "websocket".equals(
+                httpRequest.headers().get("Upgrade"));
     }
 
     private void respond(ChannelHandlerContext context, WebSocketFrame webSocketFrame) {

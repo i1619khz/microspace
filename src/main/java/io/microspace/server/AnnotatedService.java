@@ -51,8 +51,8 @@ final class AnnotatedService implements HttpService {
     private final List<RequestConverterFunction> requestConverterFunctions;
     private final List<ResponseConverterFunction> responseConverterFunctions;
     private final List<ExceptionHandlerFunction> exceptionHandlerFunctions;
-    private String defaultServiceName;
-    private ResponseType responseType;
+    private final String defaultServiceName;
+    private final ResponseType responseType;
 
     AnnotatedService(Object target, Method method,
                      boolean needToUseBlockingTaskExecutor,

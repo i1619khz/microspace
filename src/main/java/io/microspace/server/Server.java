@@ -90,9 +90,9 @@ public final class Server {
     private final Set<ServerChannel> serverChannels = new CopyOnWriteArraySet<>();
     private final Map<InetSocketAddress, ServerPort> activePorts = new LinkedHashMap<>();
     private final Stopwatch startupWatch = Stopwatch.createUnstarted();
+    private final ServerBootstrap serverBootstrap = new ServerBootstrap();
     private final ServerConfig config;
     private final SslContext sslContext;
-    private final ServerBootstrap serverBootstrap = new ServerBootstrap();
     private EventLoopGroup workerGroup;
     private ConnectionLimitHandler connectionLimitHandler;
 
@@ -153,7 +153,7 @@ public final class Server {
         workerGroup = createWorkerEventLoopGroup();
 
         connectionLimitHandler = new ConnectionLimitHandler(config.maxNumConnections());
-        final HttpServerInitializer initializer = new HttpServerInitializer(config, sslContext);
+        final HttpServerConfigurator initializer = new HttpServerConfigurator(config, sslContext);
         serverBootstrap.group(parentGroup, workerGroup).handler(connectionLimitHandler)
                        .channel(transportChannel()).childHandler(initializer);
 
@@ -429,7 +429,7 @@ public final class Server {
      * @return a {@link Map} whose key is the bind address and value is {@link ServerPort}.
      *         an empty {@link Map} if this {@link Server} did not start.
      *
-     * @see Server#activePort()
+     * @see Server#activeLocalPort()
      */
     public Map<InetSocketAddress, ServerPort> activePorts() {
         synchronized (activePorts) {

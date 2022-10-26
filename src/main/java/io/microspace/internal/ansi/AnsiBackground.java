@@ -21,18 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.context.annotation;
-
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+package io.microspace.internal.ansi;
 
 /**
- * @author i1619kHz
+ * @author WangYi
+ * @version 1.0
+ * @since 2019/1/16
  */
-@Documented
-@Target({ElementType.TYPE})
-@Retention(RetentionPolicy.RUNTIME)
-public @interface ImportResource {}
+public enum AnsiBackground implements AnsiElement {
+    BLACK_BACKGROUND("\u001B[40m"),
+    RED_BACKGROUND("\u001B[41m"),
+    GREEN_BACKGROUND("\u001B[42m"),
+    YELLOW_BACKGROUND("\u001B[43m"),
+    BLUE_BACKGROUND("\u001B[44m"),
+    PURPLE_BACKGROUND("\u001B[45m"),
+    CYAN_BACKGROUND("\u001B[46m"),
+    WHITE_BACKGROUND("\u001B[47m");
+
+    private final String code;
+
+    AnsiBackground(String code) {
+        this.code = code;
+    }
+
+    @Override
+    public String toString() {
+        return this.code;
+    }
+}

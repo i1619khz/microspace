@@ -119,7 +119,7 @@ public class AnnotatedServiceFactory {
     /**
      * Returns the list of {@link AnnotatedService} defined by {@link Path} and HTTP method annotations
      * from the specified {@code object}, {@link RequestConverterFunction}s, {@link ResponseConverterFunction}s,
-     * {@link ExceptionHandlerFunction}s and {@link AnnotatedServiceExtensions}.
+     * {@link ExceptionHandlerFunction}
      */
     public static List<AnnotatedServiceElement> find(String pathPrefix, Object object,
                                                      List<RequestConverterFunction> requestConverterFunctions,

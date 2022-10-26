@@ -59,11 +59,11 @@ import com.google.common.collect.Sets;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
-import io.microspace.context.banner.BannerPrinter;
-import io.microspace.context.banner.DefaultBannerPrinter;
 import io.microspace.internal.Flags;
 import io.microspace.internal.SystemInfo;
 import io.microspace.internal.UncheckedFnKit;
+import io.microspace.internal.banner.BannerPrinter;
+import io.microspace.internal.banner.DefaultBannerPrinter;
 import io.microspace.server.annotation.ExceptionHandlerFunction;
 import io.microspace.server.annotation.RequestConverterFunction;
 import io.microspace.server.annotation.ResponseConverterFunction;
@@ -335,9 +335,9 @@ public final class ServerBuilder {
      * @param quietPeriodMillis the number of milliseconds to wait for active
      *                          requests to go end before shutting down. 0 means the server will
      *                          stop right away without waiting.
-     * @param timeoutMillis the number of milliseconds to wait before shutting down the server regardless of
-     *                      active requests. This should be set to a time greater than {@code quietPeriodMillis}
-     *                      to ensure the server shuts down even if there is a stuck request.
+     * @param timeoutMillis     the number of milliseconds to wait before shutting down the server regardless of
+     *                          active requests. This should be set to a time greater than {@code quietPeriodMillis}
+     *                          to ensure the server shuts down even if there is a stuck request.
      */
     public ServerBuilder gracefulShutdownTimeoutMillis(long quietPeriodMillis, long timeoutMillis) {
         return gracefulShutdownTimeout(Duration.ofMillis(quietPeriodMillis), Duration.ofMillis(timeoutMillis));
@@ -350,9 +350,9 @@ public final class ServerBuilder {
      * @param quietPeriod the number of milliseconds to wait for active
      *                    requests to go end before shutting down. {@link Duration#ZERO} means
      *                    the server will stop right away without waiting.
-     * @param timeout the amount of time to wait before shutting down the server regardless of active requests.
-     *                This should be set to a time greater than {@code quietPeriod} to ensure the server
-     *                shuts down even if there is a stuck request.
+     * @param timeout     the amount of time to wait before shutting down the server regardless of active requests.
+     *                    This should be set to a time greater than {@code quietPeriod} to ensure the server
+     *                    shuts down even if there is a stuck request.
      */
     public ServerBuilder gracefulShutdownTimeout(Duration quietPeriod, Duration timeout) {
         requireNonNull(quietPeriod, "quietPeriod");
@@ -400,7 +400,7 @@ public final class ServerBuilder {
     /**
      * Register get route
      *
-     * @param pathPrefix Route path
+     * @param pathPrefix pathPrefix
      * @param service    HttpService
      * @return this
      */
@@ -411,7 +411,7 @@ public final class ServerBuilder {
     /**
      * Register post route
      *
-     * @param pathPrefix Route path
+     * @param pathPrefix pathPrefix
      * @param service    HttpService
      * @return this
      */
@@ -422,7 +422,7 @@ public final class ServerBuilder {
     /**
      * Register head route
      *
-     * @param pathPrefix Route path
+     * @param pathPrefix pathPrefix
      * @param service    HttpService
      * @return this
      */
@@ -433,7 +433,7 @@ public final class ServerBuilder {
     /**
      * Register put route
      *
-     * @param pathPrefix Route path
+     * @param pathPrefix pathPrefix
      * @param service    HttpService
      * @return this
      */
@@ -444,7 +444,7 @@ public final class ServerBuilder {
     /**
      * Register patch route
      *
-     * @param pathPrefix Route path
+     * @param pathPrefix pathPrefix
      * @param service    HttpService
      * @return this
      */
@@ -455,7 +455,7 @@ public final class ServerBuilder {
     /**
      * Register delete route
      *
-     * @param pathPrefix Route path
+     * @param pathPrefix pathPrefix
      * @param service    HttpService
      * @return this
      */
@@ -466,8 +466,8 @@ public final class ServerBuilder {
     /**
      * Register options route
      *
-     * @param prefix  Route path
-     * @param service HttpService
+     * @param pathPrefix pathPrefix
+     * @param service    HttpService
      * @return this
      */
     public ServerBuilder options(String pathPrefix, HttpService service) {
@@ -477,7 +477,7 @@ public final class ServerBuilder {
     /**
      * Register trace route
      *
-     * @param pathPrefix Route path
+     * @param pathPrefix pathPrefix
      * @param service    HttpService
      * @return this
      */

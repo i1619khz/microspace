@@ -34,7 +34,7 @@ import io.microspace.internal.DefaultValues;
  * @author i1619kHz
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.TYPE, ElementType.METHOD, ElementType.PARAMETER})
+@Target({ ElementType.TYPE, ElementType.METHOD, ElementType.PARAMETER })
 public @interface Description {
     /**
      * The description of a type, a field, a method or a parameter.

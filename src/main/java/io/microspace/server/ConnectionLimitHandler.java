@@ -91,7 +91,7 @@ final class ConnectionLimitHandler extends ChannelInboundHandlerAdapter {
         final long dropped = numDroppedConnections.sumThenReset();
         if (dropped > 0) {
             logger.warn("Dropped {} connection(s) to limit the number of open connections to {}",
-                     dropped, maxConnectionNum);
+                        dropped, maxConnectionNum);
         }
     }
 

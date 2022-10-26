@@ -32,7 +32,7 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target({ ElementType.TYPE, ElementType.METHOD })
 public @interface ExceptionHandlers {
     RouteExceptionHandler[] value();
 }

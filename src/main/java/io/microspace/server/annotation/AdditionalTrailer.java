@@ -33,7 +33,7 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Repeatable(AdditionalTrailers.class)
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target({ ElementType.TYPE, ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AdditionalTrailer {
     String name();

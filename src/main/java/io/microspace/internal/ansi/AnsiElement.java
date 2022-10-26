@@ -21,20 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.context.annotation;
-
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+package io.microspace.internal.ansi;
 
 /**
- * @author i1619kHz
+ * @author WangYi
+ * @version 1.0
+ * @since 2019/1/16
  */
-@Documented
-@Target({ElementType.TYPE})
-@Retention(RetentionPolicy.RUNTIME)
-public @interface Singleton {
-    String value() default "";
+public interface AnsiElement {
+
+    @Override
+    String toString();
 }

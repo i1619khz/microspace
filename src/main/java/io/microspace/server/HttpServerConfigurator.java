@@ -25,11 +25,10 @@ package io.microspace.server;
 
 import static java.util.Objects.requireNonNull;
 
-import io.microspace.server.websocket.WebSocketHandler;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.WriteBufferWaterMark;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.HttpServerExpectContinueHandler;
@@ -39,21 +38,25 @@ import io.netty.handler.ssl.SslContext;
 /**
  * @author i1619kHz
  */
-final class HttpServerInitializer extends ChannelInitializer<SocketChannel> {
+final class HttpServerConfigurator extends ChannelInitializer<Channel> {
     private static final WriteBufferWaterMark DISABLED_WRITE_BUFFER_WATERMARK =
             new WriteBufferWaterMark(0, Integer.MAX_VALUE);
 
     private final SslContext sslContext;
     private final ServerConfig serverConfig;
 
-    HttpServerInitializer(ServerConfig serverConfig, SslContext sslContext) {
+    HttpServerConfigurator(ServerConfig serverConfig, SslContext sslContext) {
         requireNonNull(serverConfig, "serverConfig");
         this.sslContext = sslContext;
         this.serverConfig = serverConfig;
     }
 
     @Override
-    protected void initChannel(SocketChannel ch) {
+    protected void initChannel(Channel ch) throws Exception {
+        // The remote Address method is called at least once to cache the remote address
+        ch.remoteAddress();
+
+        // Disable the write buffer watermark notification because we manage backpressure by ourselves.
         ch.config().setWriteBufferWaterMark(DISABLED_WRITE_BUFFER_WATERMARK);
 
         final ChannelPipeline pipeline = ch.pipeline();
@@ -62,11 +65,17 @@ final class HttpServerInitializer extends ChannelInitializer<SocketChannel> {
         }
 
         pipeline.addLast(new FlushConsolidationHandler());
-        pipeline.addLast(new ReadSuppressingHandler());
+        pipeline.addLast(ReadSuppressingHandler.INSTANCE);
+        configurePipeline(pipeline);
+    }
+
+    private void configurePipeline(ChannelPipeline pipeline) {
         pipeline.addLast(new HttpServerCodec());
+        pipeline.addLast(new HttpServerExpectContinueHandler());
         pipeline.addLast(new HttpObjectAggregator(512 * 1024));
         pipeline.addLast(new HttpServerExpectContinueHandler());
-        pipeline.addLast(new WebSocketHandler());
+        pipeline.addLast(TrafficLoggingHandler.SERVER);
+        pipeline.addLast(new HttpWebSocketHandler());
         pipeline.addLast(new HttpServerHandler(serverConfig));
     }
 }

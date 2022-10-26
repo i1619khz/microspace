@@ -43,6 +43,7 @@ import io.netty.util.CharsetUtil;
 @Sharable
 final class HttpServerHandler extends ChannelInboundHandlerAdapter {
     private final ServerConfig serverConfig;
+    private boolean isReading;
 
     public HttpServerHandler(ServerConfig serverConfig) {
         this.serverConfig = requireNonNull(serverConfig, "config");
@@ -50,28 +51,23 @@ final class HttpServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelReadComplete(ChannelHandlerContext ctx) {
+        isReading = false;
         ctx.flush();
     }
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
-        final Routers routers = Routers.ofServer(serverConfig);
-        final ServiceConfig serviceConfig = routers.findServiceConfig("/");
-        if (null == serviceConfig) {
-            writeResponse(ctx, "404");
-        } else {
-            final Route route = serviceConfig.route();
-            final HttpService service = serviceConfig.service();
-            final Class<? extends HttpService> ref = service.getClass();
-            service.serve(null);
-            writeResponse(ctx, "");
-        }
+        isReading = true; // Cleared in channelReadComplete()
+        writeResponse(ctx, "hello world");
     }
 
     private void writeResponse(ChannelHandlerContext ctx, String resp) {
         final FullHttpResponse response = new DefaultFullHttpResponse(
                 HTTP_1_1, OK, Unpooled.copiedBuffer(resp, CharsetUtil.UTF_8));
         ctx.write(response).addListener(ChannelFutureListener.CLOSE);
+        if (!isReading) {
+            ctx.flush();
+        }
     }
 
     @Override

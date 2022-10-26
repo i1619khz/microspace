@@ -21,18 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.context.annotation;
-
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+package io.microspace.internal.banner;
 
 /**
  * @author i1619kHz
  */
-@Documented
-@Target({ElementType.METHOD})
-@Retention(RetentionPolicy.RUNTIME)
-public @interface Lazy {}
+public abstract class AbstractBannerPrinter implements BannerPrinter {
+
+    public abstract void prePrintBannerText(String bannerText, String bannerFont);
+
+    public abstract String setUpPadding(Integer strapLineSize);
+
+    public abstract void printTextAndVersion(String padding);
+
+    @Override
+    public void printBanner(String bannerText, String bannerFont) {
+        this.prePrintBannerText(bannerText, bannerFont);
+        final String padding = setUpPadding(42);
+        this.printTextAndVersion(padding);
+    }
+}

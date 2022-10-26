@@ -33,7 +33,7 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Documented
-@Target({ElementType.TYPE})
+@Target({ ElementType.TYPE })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface WebSocket {
     String value() default "";

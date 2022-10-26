@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import io.micrometer.core.instrument.MeterRegistry;
-import io.microspace.context.banner.BannerPrinter;
+import io.microspace.internal.banner.BannerPrinter;
 import io.microspace.server.annotation.ExceptionHandlerFunction;
 import io.netty.channel.ChannelOption;
 
@@ -91,7 +91,8 @@ public final class ServerConfig {
                  int http2MaxFrameSize, int http1MaxInitialLineLength, int http1MaxHeaderSize,
                  int http1MaxChunkSize, long idleTimeoutMillis, long pingIntervalMillis,
                  long maxConnectionAgeMillis, long http2MaxHeaderListSize, long http2MaxStreamsPerConnection,
-                 int acceptThreadCount, int ioThreadCount, int serverRestartCount, Duration gracefulShutdownQuietPeriod,
+                 int acceptThreadCount, int ioThreadCount, int serverRestartCount,
+                 Duration gracefulShutdownQuietPeriod,
                  Duration gracefulShutdownTimeout) {
         this.serviceConfigs = serviceConfigs;
         this.exceptionServices = exceptionServices;

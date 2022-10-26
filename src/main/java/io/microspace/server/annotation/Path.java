@@ -35,7 +35,7 @@ import io.microspace.server.HttpMethod;
  * @author i1619kHz
  */
 @Documented
-@Target({ElementType.METHOD})
+@Target({ ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Path {
     String value() default "";

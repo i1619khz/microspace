@@ -33,7 +33,7 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Documented
-@Target({ElementType.METHOD})
+@Target({ ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface View {
     String value() default "";

@@ -1029,8 +1029,7 @@ public class MediaType {
     public boolean equals(@Nullable Object obj) {
         if (obj == this) {
             return true;
-        } else if (obj instanceof MediaType) {
-            MediaType that = (MediaType) obj;
+        } else if (obj instanceof MediaType that) {
             return this.type.equals(that.type)
                    && this.subtype.equals(that.subtype)
                    // compare parameters regardless of order

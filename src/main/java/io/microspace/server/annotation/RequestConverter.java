@@ -34,7 +34,7 @@ import java.lang.annotation.Target;
  */
 @Repeatable(RequestConverters.class)
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target({ ElementType.TYPE, ElementType.METHOD })
 public @interface RequestConverter {
     Class<? extends RequestConverterFunction> value();
 }

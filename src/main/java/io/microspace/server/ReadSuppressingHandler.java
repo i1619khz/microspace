@@ -34,6 +34,8 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 class ReadSuppressingHandler extends ChannelOutboundHandlerAdapter {
     ReadSuppressingHandler() {}
 
+    public static final ReadSuppressingHandler INSTANCE = new ReadSuppressingHandler();
+
     @Override
     public final void read(ChannelHandlerContext ctx) throws Exception {
         if (ctx.channel().config().isAutoRead()) {

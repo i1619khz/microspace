@@ -35,7 +35,6 @@ final class Http1RequestDecoder extends ChannelDuplexHandler {
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (!(msg instanceof HttpObject)) {
             ctx.fireChannelRead(msg);
-            return;
         }
     }
 }

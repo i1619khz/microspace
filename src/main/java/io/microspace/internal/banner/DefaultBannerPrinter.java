@@ -21,45 +21,39 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package io.microspace.context.scheduler;
+package io.microspace.internal.banner;
 
-import static java.util.Objects.requireNonNull;
-
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import io.leego.banana.BananaUtils;
+import io.leego.banana.Font;
+import io.microspace.internal.ansi.AnsiColor;
+import io.microspace.internal.ansi.AnsiOutput;
 
 /**
  * @author i1619kHz
  */
-enum DisabledFuture implements Future<Void> {
-    INSTANCE;
+public class DefaultBannerPrinter extends AbstractBannerPrinter {
+    private final String MICRO_SPACE_VERSION = "(v1.0.0 RELEASE)";
+    private final String MICRO_SPACE_FRAMEWORK = ":: microspace framework ::";
 
     @Override
-    public boolean isDone() {
-        return true;
+    public void prePrintBannerText(String bannerText, String bannerFont) {
+        System.out.println(BananaUtils.bananaify(bannerText, Font.get(bannerFont)));
     }
 
     @Override
-    public boolean isCancelled() {
-        return false;
+    public String setUpPadding(Integer strapLineSize) {
+        final StringBuilder padding = new StringBuilder();
+        while (padding.length() < strapLineSize - (MICRO_SPACE_VERSION.length()
+                                                   + MICRO_SPACE_FRAMEWORK.length())) {
+            padding.append(" ");
+        }
+        return padding.toString();
     }
 
     @Override
-    public boolean cancel(boolean mayInterruptIfRunning) {
-        return false;
-    }
-
-    @Override
-    public Void get() throws InterruptedException, ExecutionException {
-        return null;
-    }
-
-    @Override
-    public Void get(long timeout, TimeUnit unit)
-            throws InterruptedException, ExecutionException, TimeoutException {
-        requireNonNull(unit);
-        return null;
+    public void printTextAndVersion(String padding) {
+        System.out.println(AnsiOutput.toString(AnsiColor.GREEN, MICRO_SPACE_FRAMEWORK,
+                                               AnsiColor.RESET, padding, MICRO_SPACE_VERSION));
+        System.out.println();
     }
 }

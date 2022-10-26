@@ -34,7 +34,7 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
+@Target({ ElementType.METHOD, ElementType.ANNOTATION_TYPE })
 public @interface Order {
     /**
      * An order of a method which is annotated by this annotation. The method with the smallest order

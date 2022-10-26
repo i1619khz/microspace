@@ -33,7 +33,7 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Repeatable(AdditionalHeaders.class)
-@Target({ElementType.TYPE, ElementType.METHOD})
+@Target({ ElementType.TYPE, ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AdditionalHeader {
     String name();

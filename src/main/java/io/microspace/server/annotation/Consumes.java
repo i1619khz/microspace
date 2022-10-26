@@ -33,7 +33,7 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Documented
-@Target({ElementType.METHOD, ElementType.TYPE})
+@Target({ ElementType.METHOD, ElementType.TYPE })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Consumes {
     String value();

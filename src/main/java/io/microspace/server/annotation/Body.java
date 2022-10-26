@@ -33,6 +33,6 @@ import java.lang.annotation.Target;
  * @author i1619kHz
  */
 @Documented
-@Target({ElementType.PARAMETER})
+@Target({ ElementType.PARAMETER })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Body {}

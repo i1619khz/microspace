@@ -101,8 +101,7 @@ final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetter {
     public ServerBuilder build(Object service) {
         requireNonNull(service, "service");
         this.service = service;
-        serverBuilder.serviceConfigBuilder(this);
-        return serverBuilder;
+        return serverBuilder.serviceConfigBuilder(this);
     }
 
     @Override
@@ -154,16 +153,14 @@ final class AnnotatedServiceBindingBuilder extends AbstractServiceConfigSetter {
     }
 
     List<ServiceConfigBuilder> buildServiceConfigBuilder() {
-        List<RequestConverterFunction> requestConverterFunctions
-                = requestConverterFunctionBuilder.build();
-        List<ResponseConverterFunction> responseConverterFunctions
-                = responseConverterFunctionBuilder.build();
-        List<ExceptionHandlerFunction> exceptionHandlerFunctions =
-                exceptionHandlerFunctionBuilder.build();
+        List<RequestConverterFunction> requestConverterFunctions = requestConverterFunctionBuilder.build();
+        List<ResponseConverterFunction> responseConverterFunctions = responseConverterFunctionBuilder.build();
+        List<ExceptionHandlerFunction> exceptionHandlerFunctions = exceptionHandlerFunctionBuilder.build();
 
-        List<AnnotatedServiceElement> elements = AnnotatedServiceFactory.find(
-                pathPrefix, service, requestConverterFunctions,
-                responseConverterFunctions, exceptionHandlerFunctions);
+        List<AnnotatedServiceElement> elements = AnnotatedServiceFactory.find(pathPrefix, service,
+                                                                              requestConverterFunctions,
+                                                                              responseConverterFunctions,
+                                                                              exceptionHandlerFunctions);
 
         return elements.stream().map(element -> {
             return toServiceConfigBuilder(element.route(), element.service());
